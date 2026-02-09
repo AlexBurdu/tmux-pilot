@@ -13,7 +13,11 @@ tmux kill-pane -t "$target" 2>/dev/null || true
 if [[ "$wt_path" == *-worktree/* ]]; then
   repo_root=$(echo "$wt_path" | sed 's|-worktree/.*||')
   if [[ -d "$repo_root" ]]; then
-    git -C "$repo_root" worktree remove "$wt_path" 2>/dev/null || true
+    err=""
+    if ! err=$(git -C "$repo_root" worktree remove \
+        "$wt_path" 2>&1); then
+      echo "WARNING: worktree removal failed: $err"
+    fi
     git -C "$repo_root" worktree prune 2>/dev/null || true
     echo "Cleaned up worktree: $wt_path"
   fi

@@ -41,17 +41,16 @@ if [[ -z "$agent" ]]; then
   exit 0
 fi
 
-# Build agent command as a safe shell snippet using printf %q to
-# escape the prompt, preventing injection from special characters.
-escaped_prompt=$(printf '%q' "$prompt")
+# Build agent command as an array — no eval needed.
+cmd_args=()
 case "$agent" in
-  claude)      cmd="claude $escaped_prompt" ;;
-  gemini)      cmd="gemini $escaped_prompt" ;;
-  aider)       cmd="aider --message $escaped_prompt" ;;
-  codex)       cmd="codex $escaped_prompt" ;;
-  goose)       cmd="goose run $escaped_prompt" ;;
-  interpreter) cmd="interpreter --message $escaped_prompt" ;;
-  *)           cmd="$agent $escaped_prompt" ;;
+  claude)      cmd_args=(claude "$prompt") ;;
+  gemini)      cmd_args=(gemini "$prompt") ;;
+  aider)       cmd_args=(aider --message "$prompt") ;;
+  codex)       cmd_args=(codex "$prompt") ;;
+  goose)       cmd_args=(goose run "$prompt") ;;
+  interpreter) cmd_args=(interpreter --message "$prompt") ;;
+  *)           cmd_args=("$agent" "$prompt") ;;
 esac
 
 # Generate session name: agent-action-number or agent-action-words
@@ -78,9 +77,8 @@ else
   suggestion="${agent}-$(echo "$prompt_lower" | sed -E 's|https?://[^ ]*||g' | \
     awk '{for(i=1;i<=3&&i<=NF;i++) printf "%s-",$i}' | sed 's/-$//')"
 fi
-# Sanitize for tmux (no dots, colons, or spaces)
-suggestion="${suggestion//[.:]/_}"
-suggestion="${suggestion// /-}"
+# Strict sanitize: only alphanumerics, underscore, hyphen
+suggestion=$(echo "$suggestion" | tr -cd '[:alnum:]_-')
 
 printf '\n'
 session_name=$(: | fzf --print-query --query "$suggestion" --prompt "  Session: " \
@@ -90,9 +88,19 @@ if [[ -z "$session_name" ]]; then
   exit 0
 fi
 
+# Sanitize session name with the same strict filter
+session_name=$(echo "$session_name" | tr -cd '[:alnum:]_-')
+
+if [[ -z "$session_name" ]]; then
+  exit 0
+fi
+
 if [[ -n "$TMUX" ]]; then
-  tmux new-session -d -s "$session_name" -c "$(pwd)" "$cmd"
+  # Serialize array for tmux's shell string argument
+  tmux_cmd=$(printf '%q ' "${cmd_args[@]}")
+  tmux new-session -d -s "$session_name" \
+    -c "$(pwd)" "$tmux_cmd"
   tmux switch-client -t "$session_name"
 else
-  eval "$cmd"
+  "${cmd_args[@]}"
 fi

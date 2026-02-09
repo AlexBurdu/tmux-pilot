@@ -14,6 +14,19 @@ if [[ -z "$branch" || "$branch" == "main" || "$branch" == "master" ]]; then
 fi
 
 git add -A
+
+# Detect and unstage sensitive files
+sensitive=$(git diff --cached --name-only | \
+  grep -iE '\.(env|pem|key|p12|pfx|jks|keystore)$|credentials|secret' \
+  || true)
+if [[ -n "$sensitive" ]]; then
+  echo "$sensitive" | xargs git reset HEAD --
+  echo "WARNING: Unstaged sensitive files:"
+  echo "$sensitive" | while IFS= read -r f; do
+    printf '  %s\n' "$f"
+  done
+fi
+
 git commit -m "WIP: progress on $branch" || {
   echo "Nothing to commit"; exit 0
 }
