@@ -20,11 +20,11 @@ sensitive=$(git diff --cached --name-only | \
   grep -iE '\.(env|pem|key|p12|pfx|jks|keystore)$|credentials|secret' \
   || true)
 if [[ -n "$sensitive" ]]; then
-  echo "$sensitive" | xargs git reset HEAD --
+  xargs git reset HEAD -- <<< "$sensitive"
   echo "WARNING: Unstaged sensitive files:"
-  echo "$sensitive" | while IFS= read -r f; do
+  while IFS= read -r f; do
     printf '  %s\n' "$f"
-  done
+  done <<< "$sensitive"
 fi
 
 git commit -m "WIP: progress on $branch" || {

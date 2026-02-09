@@ -22,23 +22,85 @@ if [[ -z "$agents" ]]; then
   exit 1
 fi
 
-printf '\n  Enter a prompt (e.g. fix issue #42)\n\n'
-read -rp '  > ' prompt
+# Determine total steps (skip agent picker if only one)
+multi_agent=false
+[[ "$agents" == *$'\n'* ]] && multi_agent=true
+if $multi_agent; then
+  total=3; step=1
+else
+  total=2; step=1
+fi
+
+esc_hint="(Esc to cancel)"
+
+printf '\n  [%d/%d] Enter a prompt %s\n' \
+  "$step" "$total" "$esc_hint"
+printf '  Ctrl+E for editor\n'
+
+# fzf --print-query --expect output:
+#   line 1: query text
+#   line 2: expected key pressed (or empty)
+#   line 3: selected item (empty here, no list)
+fzf_out=$(fzf --print-query --prompt "  > " \
+  --no-info --no-separator --height=2 --reverse \
+  --expect ctrl-e \
+  < /dev/null || true)
+
+query=$(sed -n '1p' <<< "$fzf_out")
+key=$(sed -n '2p' <<< "$fzf_out")
+
+if [[ "$key" == "ctrl-e" ]]; then
+  tmpfile=$(mktemp)
+  [[ -n "$query" ]] && printf '%s' "$query" > "$tmpfile"
+  ${EDITOR:-vim} "$tmpfile"
+  prompt=$(<"$tmpfile")
+  rm -f "$tmpfile"
+else
+  prompt="$query"
+fi
 
 if [[ -z "$prompt" ]]; then
   exit 0
 fi
+((step++))
 
 # Skip picker if only one agent is available
-if [[ $(echo "$agents" | wc -l) -eq 1 ]]; then
-  agent="$agents"
+if $multi_agent; then
+  printf '\n  [%d/%d] Select an agent %s\n' \
+    "$step" "$total" "$esc_hint"
+  agent=$(fzf --no-info --no-separator --height=4 --reverse <<< "$agents")
+  ((step++))
 else
-  printf '\n  Agent:\n'
-  agent=$(echo "$agents" | fzf --no-info --no-separator --height=4 --reverse)
+  agent="$agents"
 fi
 
 if [[ -z "$agent" ]]; then
   exit 0
+fi
+
+# Directory picker
+printf '\n  [%d/%d] Working directory %s\n' \
+  "$step" "$total" "$esc_hint"
+if command -v zoxide &>/dev/null; then
+  dir=$(zoxide query -l |
+    fzf --no-info --no-separator --height=10 \
+      --reverse --print-query \
+      --query "$PWD" |
+    tail -1)
+else
+  read -rp "  [$PWD]: " dir
+  if [[ "$dir" == $'\e'* ]]; then
+    exit 0
+  fi
+fi
+
+if [[ -z "$dir" || "$dir" == "exit" ]]; then
+  exit 0
+fi
+dir="${dir:-$PWD}"
+
+if [[ ! -d "$dir" ]]; then
+  mkdir -p "$dir"
 fi
 
 # Build agent command as an array — no eval needed.
@@ -54,19 +116,19 @@ case "$agent" in
 esac
 
 # Generate session name: agent-action-number or agent-action-words
-prompt_lower=$(echo "$prompt" | tr '[:upper:]' '[:lower:]')
+prompt_lower=$(tr '[:upper:]' '[:lower:]' <<< "$prompt")
 
 # Extract action verb
-action=$(echo "$prompt_lower" | grep -oE '\b(fix|review|implement|add|update|refactor|remove|delete|debug|test|create|build|migrate|upgrade|optimize|document|improve|rewrite|move|rename|replace|clean|setup|configure)\b' | head -1)
+action=$(grep -oE '\b(fix|review|implement|add|update|refactor|remove|delete|debug|test|create|build|migrate|upgrade|optimize|document|improve|rewrite|move|rename|replace|clean|setup|configure)\b' <<< "$prompt_lower" | head -1)
 
 # Extract ticket/issue number (last number in prompt)
-num=$(echo "$prompt" | grep -oE '[0-9]+' | tail -1)
+num=$(grep -oE '[0-9]+' <<< "$prompt" | tail -1)
 
 if [[ -n "$action" && -n "$num" ]]; then
   suggestion="${agent}-${action}-${num}"
 elif [[ -n "$action" ]]; then
   # Action + first 2 non-action words
-  words=$(echo "$prompt_lower" | sed -E 's|https?://[^ ]*||g' | \
+  words=$(sed -E 's|https?://[^ ]*||g' <<< "$prompt_lower" | \
     tr -cs '[:alnum:]' ' ' | tr -s ' ' | \
     grep -oE '\b[a-z]{2,}\b' | grep -v "^${action}$" | head -2 | tr '\n' '-' | sed 's/-$//')
   suggestion="${agent}-${action}-${words}"
@@ -74,22 +136,27 @@ elif [[ -n "$num" ]]; then
   suggestion="${agent}-${num}"
 else
   # First 3 words
-  suggestion="${agent}-$(echo "$prompt_lower" | sed -E 's|https?://[^ ]*||g' | \
+  suggestion="${agent}-$(sed -E 's|https?://[^ ]*||g' <<< "$prompt_lower" | \
     awk '{for(i=1;i<=3&&i<=NF;i++) printf "%s-",$i}' | sed 's/-$//')"
 fi
 # Strict sanitize: only alphanumerics, underscore, hyphen
-suggestion=$(echo "$suggestion" | tr -cd '[:alnum:]_-')
+suggestion=$(tr -cd '[:alnum:]_-' <<< "$suggestion")
 
-printf '\n'
-session_name=$(: | fzf --print-query --query "$suggestion" --prompt "  Session: " \
-  --no-info --no-separator --height=2 --reverse || true)
+# Summary with editable session name
+short_dir="${dir/#$HOME/\~}"
+printf '\n  Agent:    %s\n' "$agent"
+printf '  Dir:      %s\n' "$short_dir"
+printf '  Prompt:   %s\n\n' "$prompt"
+printf '  Session name (edit or Enter to confirm, Esc to cancel):\n'
+session_name=$(fzf --print-query --query "$suggestion" --prompt "  " \
+  --no-info --no-separator --height=2 --reverse < /dev/null || true)
 
 if [[ -z "$session_name" ]]; then
   exit 0
 fi
 
 # Sanitize session name with the same strict filter
-session_name=$(echo "$session_name" | tr -cd '[:alnum:]_-')
+session_name=$(tr -cd '[:alnum:]_-' <<< "$session_name")
 
 if [[ -z "$session_name" ]]; then
   exit 0
@@ -99,7 +166,7 @@ if [[ -n "$TMUX" ]]; then
   # Serialize array for tmux's shell string argument
   tmux_cmd=$(printf '%q ' "${cmd_args[@]}")
   tmux new-session -d -s "$session_name" \
-    -c "$(pwd)" "$tmux_cmd"
+    -c "$dir" "$tmux_cmd"
   tmux switch-client -t "$session_name"
 else
   "${cmd_args[@]}"

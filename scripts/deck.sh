@@ -138,8 +138,7 @@ display=$(build_data)
 # selection, perform the action, then re-launch fzf
 # (except for enter/esc which break out).
 while true; do
-  result=$(echo "$display" |
-    fzf --ansi --no-sort \
+  result=$(fzf --ansi --no-sort \
       --delimiter '\t' --with-nth 2 \
       --header "enter=attach  ^e/^y=scroll  ^d/^u=page  M-d=diff  M-s=commit  M-x=kill  M-p=pause  M-r=resume  M-n=new" \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
@@ -147,7 +146,7 @@ while true; do
       --bind "ctrl-e:preview-down,ctrl-y:preview-up" \
       --bind "ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up" \
       --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n" \
-    ) || break  # esc / ctrl-c → exit
+    <<< "$display") || break  # esc / ctrl-c → exit
 
   # Parse: first line = key pressed, second line = selected
   key=$(head -1 <<< "$result")
