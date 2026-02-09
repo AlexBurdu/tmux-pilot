@@ -51,10 +51,12 @@ key=$(sed -n '2p' <<< "$fzf_out")
 
 if [[ "$key" == "ctrl-e" ]]; then
   tmpfile=$(mktemp)
+  trap 'rm -f "$tmpfile"' EXIT
   [[ -n "$query" ]] && printf '%s' "$query" > "$tmpfile"
   ${EDITOR:-vim} "$tmpfile"
   prompt=$(<"$tmpfile")
   rm -f "$tmpfile"
+  trap - EXIT
 else
   prompt="$query"
 fi
