@@ -12,6 +12,34 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Unit separator — safe delimiter
 SEP=$'\x1f'
 
+# Get human-readable RSS of a process tree.
+# Reads ps output from stdin, takes root PID as $1.
+pane_tree_mem() {
+  awk -v root="$1" '
+    { mem[$1]=$3; parent[$1]=$2 }
+    END {
+      pids[root]=1; changed=1
+      while (changed) { changed=0; for (p in parent) if (!(p in pids) && parent[p] in pids) { pids[p]=1; changed=1 } }
+      for (p in pids) kb+=mem[p]
+      if (kb >= 1048576) printf "%.1fG", kb/1048576
+      else if (kb >= 1024) printf "%dM", kb/1024
+      else printf "%dK", kb+0
+    }'
+}
+
+# Sum CPU% of a process tree.
+# Reads ps output from stdin, takes root PID as $1.
+pane_tree_cpu() {
+  awk -v root="$1" '
+    { cpu[$1]=$4; parent[$1]=$2 }
+    END {
+      pids[root]=1; changed=1
+      while (changed) { changed=0; for (p in parent) if (!(p in pids) && parent[p] in pids) { pids[p]=1; changed=1 } }
+      for (p in pids) t+=cpu[p]
+      printf "%d%%", t+0
+    }'
+}
+
 # Build an indexed data file:
 #   line N = target<TAB>path
 # and a display list:
@@ -20,11 +48,12 @@ SEP=$'\x1f'
 # user-controlled data, so it's safe in fzf fields.
 
 list_panes() {
-  local now
+  local now ps_data
   now=$(date +%s)
+  ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
   tmux list-panes -a -F \
-    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{window_activity}" |
-  while IFS="$SEP" read -r target session name title path activity; do
+    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{window_activity}${SEP}#{pane_pid}" |
+  while IFS="$SEP" read -r target session win_idx name title path activity pane_pid; do
     local elapsed=$((now - activity))
     local age
     if [ "$elapsed" -lt 60 ]; then
@@ -36,10 +65,15 @@ list_panes() {
     else
       age="$((elapsed / 86400))d ago"
     fi
-    local short_path="${path/#$HOME/\~}"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    local max_ses=$((18 - ${#win_idx}))
+    [[ ${#session} -gt $max_ses ]] && session="${session:0:$((max_ses - 2))}.."
+    [[ ${#title} -gt 25 ]] && title="${title:0:23}.."
+    local mem cpu
+    mem=$(pane_tree_mem "$pane_pid" <<< "$ps_data")
+    cpu=$(pane_tree_cpu "$pane_pid" <<< "$ps_data")
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$activity" "$target" "$path" \
-      "$session" "$name" "$title" "$age" "$short_path"
+      "$session:$win_idx" "$name" "$title" "$age" "$cpu" "$mem"
   done
 }
 
@@ -60,7 +94,7 @@ build_data() {
 
   # Display: index<TAB>visible columns
   local idx=1
-  cut -d$'\t' -f4- "$sorted" | column -t |
+  cut -d$'\t' -f4- "$sorted" | column -t -s$'\t' |
   while IFS= read -r display_line; do
     printf '%s\t%s\n' "$idx" "$display_line"
     idx=$((idx + 1))
@@ -80,10 +114,11 @@ if [[ "${1:-}" == "--list" ]]; then
   tmpfile=$(mktemp)
   sorted=$(mktemp)
   now=$(date +%s)
+  ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
 
   tmux list-panes -a -F \
-    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{window_activity}" |
-  while IFS="$SEP" read -r target session name title path activity; do
+    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{window_activity}${SEP}#{pane_pid}" |
+  while IFS="$SEP" read -r target session win_idx name title path activity pane_pid; do
     elapsed=$((now - activity))
     if [ "$elapsed" -lt 60 ]; then
       age="active"
@@ -94,10 +129,14 @@ if [[ "${1:-}" == "--list" ]]; then
     else
       age="$((elapsed / 86400))d ago"
     fi
-    short_path="${path/#$HOME/\~}"
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    max_ses=$((18 - ${#win_idx}))
+    [[ ${#session} -gt $max_ses ]] && session="${session:0:$((max_ses - 2))}.."
+    [[ ${#title} -gt 25 ]] && title="${title:0:23}.."
+    mem=$(pane_tree_mem "$pane_pid" <<< "$ps_data")
+    cpu=$(pane_tree_cpu "$pane_pid" <<< "$ps_data")
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$activity" "$target" "$path" \
-      "$session" "$name" "$title" "$age" "$short_path"
+      "$session:$win_idx" "$name" "$title" "$age" "$cpu" "$mem"
   done > "$tmpfile"
 
   sort -t$'\t' -k1,1 -rn "$tmpfile" > "$sorted"
@@ -107,7 +146,7 @@ if [[ "${1:-}" == "--list" ]]; then
   cut -d$'\t' -f2,3 "$sorted" > "$data_file"
 
   idx=1
-  cut -d$'\t' -f4- "$sorted" | column -t |
+  cut -d$'\t' -f4- "$sorted" | column -t -s$'\t' |
   while IFS= read -r display_line; do
     printf '%s\t%s\n' "$idx" "$display_line"
     idx=$((idx + 1))
@@ -142,7 +181,7 @@ while true; do
       --delimiter '\t' --with-nth 2 \
       --header "enter=attach  ^e/^y=scroll  ^d/^u=page  M-d=diff  M-s=commit  M-x=kill  M-p=pause  M-r=resume  M-n=new" \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
-      --preview-window=right:60%:follow \
+      --preview-window=right:50%:follow \
       --bind "ctrl-e:preview-down,ctrl-y:preview-up" \
       --bind "ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up" \
       --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n" \

@@ -143,6 +143,8 @@ else
 fi
 # Strict sanitize: only alphanumerics, underscore, hyphen
 suggestion=$(tr -cd '[:alnum:]_-' <<< "$suggestion")
+# Cap length so session:idx fits the deck column (20 chars)
+suggestion="${suggestion:0:17}"
 
 # Summary with editable session name
 short_dir="${dir/#$HOME/\~}"
@@ -159,6 +161,7 @@ fi
 
 # Sanitize session name with the same strict filter
 session_name=$(tr -cd '[:alnum:]_-' <<< "$session_name")
+session_name="${session_name:0:17}"
 
 if [[ -z "$session_name" ]]; then
   exit 0

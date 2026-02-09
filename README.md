@@ -8,17 +8,22 @@ Supports **Claude Code**, **Gemini CLI**, **Aider**, **Codex**, **Goose**, and *
 
 ### New agent launcher (`prefix+a`)
 
-Opens a centered popup where you:
+Opens a centered popup that walks you through a guided flow with step indicators and Esc-to-cancel on each step:
 
-1. Type a prompt (e.g. "fix issue #42")
+1. Type a prompt (e.g. "fix issue #42") — press `Ctrl+E` to open `$EDITOR` for multiline prompts
 2. Pick an agent (skipped if only one is installed)
-3. Confirm or edit the auto-generated session name
+3. Pick a working directory ([zoxide](https://github.com/ajeetdsouza/zoxide)+fzf if available, manual entry otherwise)
+4. Review a summary and confirm or edit the auto-generated session name
 
-Each agent gets its own tmux session. The session name is derived from the prompt — action verb + ticket number or keywords (e.g. `claude-fix-42`, `gemini-refactor-auth`).
+Each agent gets its own tmux session. The session name is derived from the prompt — action verb + ticket number or keywords (e.g. `claude-fix-42`, `gemini-refactor-auth`). Names are capped at 17 characters to fit the deck's column layout.
 
 ### Agent deck (`prefix+g`)
 
 An fzf-based popup listing all panes across all sessions, sorted by most recent activity, with a live preview of each pane's output.
+
+Columns: **Session:Index** | **Window** | **Title** | **Age** | **CPU** | **RAM**
+
+CPU and RAM are computed per pane by summing the entire process tree (shell + agent + child processes), so you can spot runaway agents at a glance.
 
 | Key | Action |
 |-----|--------|
@@ -55,6 +60,10 @@ Reads the `@pilot-workdir` pane variable first (set by agent hooks), falling bac
   [Codex](https://github.com/openai/codex),
   [Goose](https://github.com/block/goose), or
   [Open Interpreter](https://github.com/OpenInterpreter/open-interpreter)
+
+**Optional:**
+
+- [zoxide](https://github.com/ajeetdsouza/zoxide) — fuzzy directory picker for new agent launcher (falls back to manual entry)
 
 **For VCS status (`prefix+d`):**
 
@@ -179,7 +188,7 @@ Add to `~/.gemini/settings.json`:
 | Agent isolation | tmux sessions | tmux sessions |
 | Live preview | fzf preview pane | Built-in TUI |
 | Pause/resume | Alt+P / Alt+R | c / r |
-| New agent | Prompt + agent picker + smart naming | n |
+| New agent | Guided flow: prompt, agent picker, directory picker, smart naming | n |
 | Commit | Alt+S (WIP commit + push) | s |
 
 ## Scripts
