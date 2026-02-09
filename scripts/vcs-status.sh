@@ -30,7 +30,7 @@ if ! command -v nvim &>/dev/null; then
 fi
 
 if git rev-parse --show-toplevel &>/dev/null; then
-  nvim +Git
+  nvim +Git +only
 elif hg root &>/dev/null; then
   nvim +Hgstatus
 else
