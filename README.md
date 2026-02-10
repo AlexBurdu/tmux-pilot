@@ -4,6 +4,8 @@ AI agent manager for tmux. Launch, monitor, and orchestrate multiple coding agen
 
 Supports **Claude Code**, **Gemini CLI**, **Aider**, **Codex**, **Goose**, and **Open Interpreter** — auto-detects which agents are installed.
 
+WARNING: THIS PLUGIN IS VIBE-CODED. USE IT AT YOUR OWN RISK. 
+
 ## Features
 
 ### New agent launcher (`prefix+a`)
