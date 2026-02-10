@@ -10,7 +10,7 @@ cd "$PWD"
 if ! command -v nvim &>/dev/null; then
   printf '\n  nvim is not installed.\n\n'
   printf '  Press any key to close.'
-  read -n1
+  read -t 5 -n1
   exit 1
 fi
 
@@ -21,5 +21,5 @@ elif hg root &>/dev/null; then
 else
   printf '\n  Not a git or hg repository.\n\n'
   printf '  Press any key to close.'
-  read -n1
+  read -t 5 -n1
 fi
