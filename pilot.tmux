@@ -34,5 +34,6 @@ tmux bind-key "$key_deck" display-popup \
   "$CURRENT_DIR/scripts/deck.sh"
 
 tmux bind-key "$key_vcs" display-popup \
-  -w "$popup_vcs_w" -h "$popup_vcs_h" -E \
+  -w "$popup_vcs_w" -h "$popup_vcs_h" \
+  -d '#{pane_current_path}' -E \
   "$CURRENT_DIR/scripts/vcs-status.sh"
