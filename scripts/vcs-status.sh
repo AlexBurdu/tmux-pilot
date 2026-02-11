@@ -15,8 +15,10 @@ if ! command -v nvim &>/dev/null; then
 fi
 
 if git rev-parse --show-toplevel &>/dev/null; then
+  cd "$(git rev-parse --show-toplevel)"
   nvim +Git +only
 elif hg root &>/dev/null; then
+  cd "$(hg root)"
   nvim +Hgstatus
 else
   printf '\n  Not a git or hg repository.\n\n'
