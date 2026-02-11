@@ -52,8 +52,9 @@ list_panes() {
   now=$(date +%s)
   ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
   tmux list-panes -a -F \
-    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{window_activity}${SEP}#{pane_pid}" |
-  while IFS="$SEP" read -r target session win_idx name title path activity pane_pid; do
+    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}" |
+  while IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid; do
+    [[ -n "$workdir" ]] && path="$workdir"
     local elapsed=$((now - activity))
     local age
     if [ "$elapsed" -lt 60 ]; then
@@ -117,8 +118,9 @@ if [[ "${1:-}" == "--list" ]]; then
   ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
 
   tmux list-panes -a -F \
-    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{window_activity}${SEP}#{pane_pid}" |
-  while IFS="$SEP" read -r target session win_idx name title path activity pane_pid; do
+    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}" |
+  while IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid; do
+    [[ -n "$workdir" ]] && path="$workdir"
     elapsed=$((now - activity))
     if [ "$elapsed" -lt 60 ]; then
       age="active"
