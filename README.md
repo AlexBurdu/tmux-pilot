@@ -27,10 +27,18 @@ Columns: **Session:Index** | **Window** | **Title** | **Age** | **CPU** | **RAM*
 
 CPU and RAM are computed per pane by summing the entire process tree (shell + agent + child processes), so you can spot runaway agents at a glance.
 
-A shortcut reference is shown in the header bar inside the deck:
+Example:
 
 ```
-enter=attach  ^e/^y=scroll  ^d/^u=page  M-d=diff  M-s=commit  M-x=kill  M-p=pause  M-r=resume  M-n=new
+enter=attach  ^e/^y=scroll  ^d/^u=page  M-d=diff  M-s=commit
+M-x=kill  M-p=pause  M-r=resume  M-n=new
+────────────────────────────────────────────────────────────────
+SESSION            WINDOW    TITLE                    AGE     CPU  MEM
+ cld-fix-login:0    🔥18:42   * Fix login validation   active  31%  2.1G
+ gem-refactor-au:0  running   * Refactor auth flow     3m ago   5%  826M
+ aider-docs:0       editing   * Update API docs        8m ago   0%  412M
+ cld-issue-42:0     🖐️18:30   cld-issue-42             15m ago  0%  1.3G
+ app:0              zsh       alex@macbook             2h ago   0%  106M
 ```
 
 | Key | Action |
