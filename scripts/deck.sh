@@ -41,7 +41,7 @@ pane_tree_cpu() {
 }
 
 # Compute column widths from terminal size.
-# Sets globals: COL_SES COL_WIN COL_TITLE COL_AGE COL_CPU COL_MEM
+# Sets globals: COL_SES COL_WIN COL_AGE COL_CPU COL_MEM
 compute_layout() {
   local total_cols popup_w client_w pct
   # Query tmux directly (tput unreliable during popup PTY init)
@@ -54,39 +54,30 @@ compute_layout() {
   else
     total_cols=$popup_w
   fi
-  # List panel: half the popup minus fzf chrome (border + separator + padding)
-  local list_w=$(( total_cols / 2 - 4 ))
+  # List panel: 40% of popup minus fzf chrome (preview gets 60%)
+  local list_w=$(( total_cols * 40 / 100 - 4 ))
 
   # Fixed-width columns (never truncated)
   COL_AGE=7    # "active", "5m ago", "12h ago"
   COL_CPU=4    # "0%", "100%"
   COL_MEM=5    # "1.3G", "429M"
-  local gaps=10  # column-t 2-space gaps between 6 columns (5 gaps)
-  local fixed=$(( COL_AGE + COL_CPU + COL_MEM + gaps ))
+  COL_WIN=8    # window name
+  local gaps=8  # column-t 2-space gaps between 5 columns (4 gaps)
+  local fixed=$(( COL_WIN + COL_AGE + COL_CPU + COL_MEM + gaps ))
 
-  # Variable columns get whatever space remains after fixed columns
-  local var=$(( list_w - fixed ))
-  if [[ $var -lt 0 ]]; then var=0; fi
-  COL_SES=$(( var * 35 / 100 ))
-  COL_WIN=$(( var * 15 / 100 ))
-  COL_TITLE=$(( var - COL_SES - COL_WIN ))
-  # Apply minimums only when there's enough space (don't overflow into fixed cols)
-  if [[ $var -ge 21 ]]; then
-    if [[ $COL_SES -lt 8 ]]; then COL_SES=8; fi
-    if [[ $COL_WIN -lt 5 ]]; then COL_WIN=5; fi
-    if [[ $COL_TITLE -lt 8 ]]; then COL_TITLE=8; fi
-  fi
+  # Session column gets whatever space remains after fixed columns
+  COL_SES=$(( list_w - fixed ))
+  if [[ $COL_SES -lt 8 ]]; then COL_SES=8; fi
 }
 compute_layout
 
 # Column header with bold styling (fzf --ansi processes escape codes)
-COL_HEADER=$(printf '\033[1m%-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s\033[0m' \
+COL_HEADER=$(printf '\033[1m%-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s\033[0m' \
   "$COL_SES" "$COL_SES" "SESSION" "$COL_WIN" "$COL_WIN" "WINDOW" \
-  "$COL_TITLE" "$COL_TITLE" "TITLE" "$COL_AGE" "$COL_AGE" "AGE" \
-  "$COL_CPU" "$COL_CPU" "CPU" "$COL_MEM" "$COL_MEM" "MEM")
+  "$COL_AGE" "$COL_AGE" "AGE" "$COL_CPU" "$COL_CPU" "CPU" "$COL_MEM" "$COL_MEM" "MEM")
 
 # Separator line matching column header width
-COL_SEP_W=$(( COL_SES + COL_WIN + COL_TITLE + COL_AGE + COL_CPU + COL_MEM + 10 ))
+COL_SEP_W=$(( COL_SES + COL_WIN + COL_AGE + COL_CPU + COL_MEM + 8 ))
 COL_SEP=$(printf '─%.0s' $(seq 1 "$COL_SEP_W"))
 
 # Align pre-truncated columns (column -t handles emoji/wide chars).
@@ -94,8 +85,8 @@ COL_SEP=$(printf '─%.0s' $(seq 1 "$COL_SEP_W"))
 # even when actual data is shorter.
 format_display() {
   local ruler
-  ruler=$(printf '%*s\t%*s\t%*s\t%*s\t%*s\t%*s' \
-    "$COL_SES" "" "$COL_WIN" "" "$COL_TITLE" "" \
+  ruler=$(printf '%*s\t%*s\t%*s\t%*s\t%*s' \
+    "$COL_SES" "" "$COL_WIN" "" \
     "$COL_AGE" "" "$COL_CPU" "" "$COL_MEM" "" | tr ' ' '_')
   { echo "$ruler"; cat; } | column -t -s$'\t' | tail -n +2
 }
@@ -130,13 +121,12 @@ list_panes() {
     [[ $max_ses -lt 2 ]] && max_ses=2
     [[ ${#session} -gt $max_ses ]] && session="${session:0:$((max_ses - 2))}.."
     [[ ${#name} -gt $COL_WIN ]] && name="${name:0:$((COL_WIN - 2))}.."
-    [[ ${#title} -gt $COL_TITLE ]] && title="${title:0:$((COL_TITLE - 2))}.."
     local mem cpu
     mem=$(pane_tree_mem "$pane_pid" <<< "$ps_data")
     cpu=$(pane_tree_cpu "$pane_pid" <<< "$ps_data")
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$activity" "$target" "$path" \
-      "$session:$win_idx" "$name" "$title" "$age" "$cpu" "$mem"
+      "$session:$win_idx" "$name" "$age" "$cpu" "$mem"
   done
 }
 
@@ -197,12 +187,11 @@ if [[ "${1:-}" == "--list" ]]; then
     [[ $max_ses -lt 2 ]] && max_ses=2
     [[ ${#session} -gt $max_ses ]] && session="${session:0:$((max_ses - 2))}.."
     [[ ${#name} -gt $COL_WIN ]] && name="${name:0:$((COL_WIN - 2))}.."
-    [[ ${#title} -gt $COL_TITLE ]] && title="${title:0:$((COL_TITLE - 2))}.."
     mem=$(pane_tree_mem "$pane_pid" <<< "$ps_data")
     cpu=$(pane_tree_cpu "$pane_pid" <<< "$ps_data")
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$activity" "$target" "$path" \
-      "$session:$win_idx" "$name" "$title" "$age" "$cpu" "$mem"
+      "$session:$win_idx" "$name" "$age" "$cpu" "$mem"
   done > "$tmpfile"
 
   sort -t$'\t' -k1,1 -rn "$tmpfile" > "$sorted"
@@ -245,12 +234,13 @@ display=$(build_data)
 while true; do
   result=$(fzf --ansi --no-sort --layout=reverse \
       --delimiter '\t' --with-nth 2 \
-      --header "enter=attach  ^e/^y=scroll  ^d/^u=page  M-d=diff  M-s=commit
-M-x=kill  M-p=pause  M-r=resume  M-n=new
+      --header "Enter=attach  Ctrl-e/y=scroll  Ctrl-d/u=page
+Alt-d=diff  Alt-s=commit  Alt-x=kill
+Alt-p=pause  Alt-r=resume  Alt-n=new
 $COL_SEP" \
       --header-lines=1 \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
-      --preview-window=right:50%:follow \
+      --preview-window=right:60%:follow:~6:wrap \
       --bind "ctrl-e:preview-down,ctrl-y:preview-up" \
       --bind "ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up" \
       --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n" \
