@@ -30,15 +30,16 @@ CPU and RAM are computed per pane by summing the entire process tree (shell + ag
 Example:
 
 ```
-enter=attach  ^e/^y=scroll  ^d/^u=page  M-d=diff  M-s=commit
-M-x=kill  M-p=pause  M-r=resume  M-n=new
-────────────────────────────────────────────────────────────────
-SESSION            WINDOW     AGE     CPU  MEM
- cld-fix-login:0    🔥18:42   active  31%  2.1G
- gem-refactor-au:0  running   3m ago   5%  826M
- aider-docs:0       editing   8m ago   0%  412M
- cld-issue-42:0     🖐️18:30   15m ago  0%  1.3G
- app:0              zsh       2h ago   0%  106M
+Enter=attach  Ctrl-e/y=scroll  Ctrl-d/u=page
+Alt-d=diff  Alt-s=commit  Alt-x=kill
+Alt-p=pause  Alt-r=resume  Alt-n=new
+────────────────────────────────────────────────────
+SESSION            WINDOW    AGE     CPU  MEM
+ cld-fix-login:0    🔥18:42  active  31%  2.1G
+ gem-refactor-au:0  running  3m ago   5%  826M
+ aider-docs:0       editing  8m ago   0%  412M
+ cld-issue-42:0     🖐️18:30  15m ago  0%  1.3G
+ app:0              zsh      2h ago   0%  106M
 ```
 
 | Key | Action |
@@ -53,6 +54,14 @@ SESSION            WINDOW     AGE     CPU  MEM
 | `Alt+R` | Resume agent (sends `claude --continue`) |
 | `Alt+N` | Launch new agent |
 | `Esc` | Close deck |
+
+The preview panel (right side, 60%) shows metadata for the selected pane:
+
+- **PANE** — target, window name, last activity
+- **TITLE** — pane title (set by the agent)
+- **WORKDIR** — working directory (full path, wraps if long)
+- **CMD** — running command and uptime
+- **VCS** — branch, dirty status (+staged ~modified ?untracked), ahead/behind remote (↑↓)
 
 ### VCS status (`prefix+d`)
 
@@ -157,7 +166,7 @@ Add to `~/.claude/settings.json` (merge with existing hooks):
         "matcher": "Write|Edit",
         "hooks": [{
           "type": "command",
-          "command": "jq -r '.tool_input.file_path // empty' | xargs -I{} sh -c 'tmux set-option -p @pilot-workdir \"$(dirname \"{}\")\" 2>/dev/null; true'"
+          "command": "jq -r '.tool_input.file_path // empty' | while IFS= read -r f; do [ -n \"$f\" ] && tmux set-option -p @pilot-workdir \"$(dirname \"$f\")\" 2>/dev/null; done; true"
         }]
       }
     ]
@@ -177,7 +186,7 @@ Add to `~/.gemini/settings.json`:
         "matcher": "write_file|edit_file",
         "hooks": [{
           "type": "command",
-          "command": "jq -r '.tool_input.file_path // empty' | xargs -I{} sh -c 'tmux set-option -p @pilot-workdir \"$(dirname \"{}\")\" 2>/dev/null; true'"
+          "command": "jq -r '.tool_input.file_path // empty' | while IFS= read -r f; do [ -n \"$f\" ] && tmux set-option -p @pilot-workdir \"$(dirname \"$f\")\" 2>/dev/null; done; true"
         }]
       }
     ]
