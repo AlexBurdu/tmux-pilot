@@ -18,9 +18,9 @@ key_vcs=$(get_opt "@pilot-key-vcs-status" "d")
 
 popup_new_w=$(get_opt "@pilot-popup-new-agent-width" "40%")
 popup_new_h=$(get_opt "@pilot-popup-new-agent-height" "30%")
-popup_deck_w=$(get_opt "@pilot-popup-deck-width" "90%")
+popup_deck_w=$(get_opt "@pilot-popup-deck-width" "95%")
 popup_deck_h=$(get_opt "@pilot-popup-deck-height" "90%")
-popup_vcs_w=$(get_opt "@pilot-popup-vcs-status-width" "90%")
+popup_vcs_w=$(get_opt "@pilot-popup-vcs-status-width" "95%")
 popup_vcs_h=$(get_opt "@pilot-popup-vcs-status-height" "90%")
 
 # Keybindings
@@ -30,10 +30,12 @@ tmux bind-key "$key_new" display-popup \
   "$CURRENT_DIR/scripts/new-agent.sh"
 
 tmux bind-key "$key_deck" display-popup \
-  -w "$popup_deck_w" -h "$popup_deck_h" -E \
+  -w "$popup_deck_w" -h "$popup_deck_h" \
+  -y '#{e|+|:#{popup_centre_y},1}' -E \
   "$CURRENT_DIR/scripts/deck.sh"
 
 tmux bind-key "$key_vcs" display-popup \
   -w "$popup_vcs_w" -h "$popup_vcs_h" \
+  -y '#{e|+|:#{popup_centre_y},1}' \
   -d '#{?@pilot-workdir,#{@pilot-workdir},#{pane_current_path}}' -E \
   "$CURRENT_DIR/scripts/vcs-status.sh"

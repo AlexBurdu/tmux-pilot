@@ -21,11 +21,17 @@ Each agent gets its own tmux session. The session name is derived from the promp
 
 ### Agent deck (`prefix+g`)
 
-An fzf-based popup listing all panes across all sessions, sorted by most recent activity, with a live preview of each pane's output.
+An fzf-based popup listing all panes across all sessions, sorted by most recent activity, with a live preview of each pane's output. Column widths adapt dynamically to the terminal size.
 
 Columns: **Session:Index** | **Window** | **Title** | **Age** | **CPU** | **RAM**
 
 CPU and RAM are computed per pane by summing the entire process tree (shell + agent + child processes), so you can spot runaway agents at a glance.
+
+A shortcut reference is shown in the header bar inside the deck:
+
+```
+enter=attach  ^e/^y=scroll  ^d/^u=page  M-d=diff  M-s=commit  M-x=kill  M-p=pause  M-r=resume  M-n=new
+```
 
 | Key | Action |
 |-----|--------|
@@ -119,10 +125,10 @@ set -g @pilot-key-vcs "d"
 # Popup sizes
 set -g @pilot-popup-new-width "40%"
 set -g @pilot-popup-new-height "30%"
-set -g @pilot-popup-deck-width "90%"
+set -g @pilot-popup-deck-width "95%"
 set -g @pilot-popup-deck-height "90%"
-set -g @pilot-popup-vcs-width "80%"
-set -g @pilot-popup-vcs-height "80%"
+set -g @pilot-popup-vcs-width "95%"
+set -g @pilot-popup-vcs-height "90%"
 ```
 
 ## Working directory tracking
@@ -140,17 +146,10 @@ Add to `~/.claude/settings.json` (merge with existing hooks):
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Write",
+        "matcher": "Write|Edit",
         "hooks": [{
           "type": "command",
-          "command": "tmux set-option -p @pilot-workdir \"$(dirname \"$CLAUDE_FILE_PATH\")\" 2>/dev/null; true"
-        }]
-      },
-      {
-        "matcher": "Edit",
-        "hooks": [{
-          "type": "command",
-          "command": "tmux set-option -p @pilot-workdir \"$(dirname \"$CLAUDE_FILE_PATH\")\" 2>/dev/null; true"
+          "command": "jq -r '.tool_input.file_path // empty' | xargs -I{} sh -c 'tmux set-option -p @pilot-workdir \"$(dirname \"{}\")\" 2>/dev/null; true'"
         }]
       }
     ]
@@ -179,19 +178,6 @@ Add to `~/.gemini/settings.json`:
 ```
 
 > **Note**: The Gemini CLI hook reads `tool_input` from stdin as JSON. The exact field name may vary — use a debug hook (`cat > /tmp/gemini-hook-debug.json`) to confirm the schema.
-
-## How it compares to Claude Squad
-
-| Feature | tmux-pilot | Claude Squad |
-|---------|-----------|--------------|
-| Agent support | Claude, Gemini, Aider, Codex, Goose, Open Interpreter | Claude only |
-| VCS support | git + Mercurial (via neovim) | git only |
-| Architecture | Extends tmux (plugin) | Replaces tmux (standalone TUI) |
-| Agent isolation | tmux sessions | tmux sessions |
-| Live preview | fzf preview pane | Built-in TUI |
-| Pause/resume | Alt+P / Alt+R | c / r |
-| New agent | Guided flow: prompt, agent picker, directory picker, smart naming | n |
-| Commit | Alt+S (WIP commit + push) | s |
 
 ## Scripts
 
