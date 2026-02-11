@@ -64,22 +64,30 @@ compute_layout() {
   local gaps=10  # column-t 2-space gaps between 6 columns (5 gaps)
   local fixed=$(( COL_AGE + COL_CPU + COL_MEM + gaps ))
 
-  # Variable columns get the remaining space
+  # Variable columns get whatever space remains after fixed columns
   local var=$(( list_w - fixed ))
-  if [[ $var -lt 20 ]]; then var=20; fi
-  COL_SES=$(( var * 30 / 100 ))
+  if [[ $var -lt 0 ]]; then var=0; fi
+  COL_SES=$(( var * 35 / 100 ))
   COL_WIN=$(( var * 15 / 100 ))
   COL_TITLE=$(( var - COL_SES - COL_WIN ))
-  if [[ $COL_SES -lt 8 ]]; then COL_SES=8; fi
-  if [[ $COL_WIN -lt 5 ]]; then COL_WIN=5; fi
-  if [[ $COL_TITLE -lt 8 ]]; then COL_TITLE=8; fi
+  # Apply minimums only when there's enough space (don't overflow into fixed cols)
+  if [[ $var -ge 21 ]]; then
+    if [[ $COL_SES -lt 8 ]]; then COL_SES=8; fi
+    if [[ $COL_WIN -lt 5 ]]; then COL_WIN=5; fi
+    if [[ $COL_TITLE -lt 8 ]]; then COL_TITLE=8; fi
+  fi
 }
 compute_layout
 
 # Column header with bold styling (fzf --ansi processes escape codes)
-COL_HEADER=$(printf '\033[1m%-*s  %-*s  %-*s  %-*s  %-*s  %-*s\033[0m' \
-  "$COL_SES" "SESSION" "$COL_WIN" "WINDOW" "$COL_TITLE" "TITLE" \
-  "$COL_AGE" "AGE" "$COL_CPU" "CPU" "$COL_MEM" "MEM")
+COL_HEADER=$(printf '\033[1m%-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s\033[0m' \
+  "$COL_SES" "$COL_SES" "SESSION" "$COL_WIN" "$COL_WIN" "WINDOW" \
+  "$COL_TITLE" "$COL_TITLE" "TITLE" "$COL_AGE" "$COL_AGE" "AGE" \
+  "$COL_CPU" "$COL_CPU" "CPU" "$COL_MEM" "$COL_MEM" "MEM")
+
+# Separator line matching column header width
+COL_SEP_W=$(( COL_SES + COL_WIN + COL_TITLE + COL_AGE + COL_CPU + COL_MEM + 10 ))
+COL_SEP=$(printf '─%.0s' $(seq 1 "$COL_SEP_W"))
 
 # Align pre-truncated columns (column -t handles emoji/wide chars).
 # A ruler row forces column-t to allocate full budgeted widths
@@ -239,7 +247,7 @@ while true; do
       --delimiter '\t' --with-nth 2 \
       --header "enter=attach  ^e/^y=scroll  ^d/^u=page  M-d=diff  M-s=commit
 M-x=kill  M-p=pause  M-r=resume  M-n=new
-────────────────────────────────────────────────────────────────────────────" \
+$COL_SEP" \
       --header-lines=1 \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
       --preview-window=right:50%:follow \
