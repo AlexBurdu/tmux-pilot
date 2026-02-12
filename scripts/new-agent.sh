@@ -168,6 +168,20 @@ if [[ -z "$session_name" ]]; then
 fi
 
 if [[ -n "$TMUX" ]]; then
+  # Resolve session name collisions by appending a numeric suffix
+  if tmux has-session -t "=$session_name" 2>/dev/null; then
+    n=2
+    while (( n <= 99 )); do
+      suffix="-${n}"
+      candidate="${session_name:0:$((17 - ${#suffix}))}${suffix}"
+      if ! tmux has-session -t "=$candidate" 2>/dev/null; then
+        session_name="$candidate"
+        break
+      fi
+      ((n++))
+    done
+  fi
+
   # Serialize array for tmux's shell string argument
   tmux_cmd=$(printf '%q ' "${cmd_args[@]}")
   tmux new-session -d -s "$session_name" \
