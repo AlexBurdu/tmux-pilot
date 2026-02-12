@@ -53,12 +53,14 @@ SESSION            WINDOW    AGE     CPU  MEM
 | `Alt+P` | Pause agent (sends `/exit`, keeps pane alive for resume) |
 | `Alt+R` | Resume agent (sends `claude --continue`, only works after pause) |
 | `Alt+N` | Launch new agent |
+| `Alt+E` | Edit session description |
 | `Esc` | Close deck |
 
 The preview panel (right side, 60%) shows metadata for the selected pane:
 
 - **PANE** — target, window name, last activity
 - **TITLE** — pane title (set by the agent)
+- **DESC** — session description (auto-set from prompt, or manually via `@pilot-desc`)
 - **WORKDIR** — working directory (full path, wraps if long)
 - **CMD** — running command and uptime
 - **VCS** — branch, dirty status (+staged ~modified ?untracked), ahead/behind remote (↑↓)
@@ -147,6 +149,18 @@ set -g @pilot-popup-deck-height "90%"
 set -g @pilot-popup-vcs-width "95%"
 set -g @pilot-popup-vcs-height "90%"
 ```
+
+## Session descriptions
+
+Each agent session can have a short description (the `@pilot-desc` pane variable) displayed in the deck preview header as **DESC**. When you launch an agent via `prefix+a`, the description is auto-set from the first 80 characters of your prompt.
+
+You can edit descriptions from the deck with `Alt+E`, or set them manually on any pane:
+
+```bash
+tmux set-option -p @pilot-desc "migrate auth to Compose"
+```
+
+Only panes with a description show the DESC line — others are unaffected.
 
 ## Working directory tracking
 

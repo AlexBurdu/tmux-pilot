@@ -236,14 +236,14 @@ while true; do
       --delimiter '\t' --with-nth 2 \
       --header "Enter=attach  Ctrl-e/y=scroll  Ctrl-d/u=page
 Alt-d=diff  Alt-s=commit  Alt-x=kill
-Alt-p=pause  Alt-r=resume  Alt-n=new
+Alt-p=pause  Alt-r=resume  Alt-n=new  Alt-e=desc
 $COL_SEP" \
       --header-lines=1 \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
-      --preview-window=right:60%:follow:~6:wrap \
+      --preview-window=right:60%:follow:~7:wrap \
       --bind "ctrl-e:preview-down,ctrl-y:preview-up" \
       --bind "ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up" \
-      --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n" \
+      --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n,alt-e" \
     <<< "0	$COL_HEADER
 $display") || break  # esc / ctrl-c → exit
 
@@ -285,6 +285,15 @@ $display") || break  # esc / ctrl-c → exit
       "$CURRENT_DIR/new-agent.sh"
       # Rebuild data after new agent
       display=$(build_data)
+      ;;
+    alt-e)
+      target=$(lookup "$idx" target) || continue
+      cur=$(tmux display-message -t "$target" -p '#{@pilot-desc}' 2>/dev/null) || cur=""
+      printf '\n  Description: '
+      read -rei "$cur" new_desc
+      if [[ -n "$new_desc" ]]; then
+        tmux set-option -p -t "$target" @pilot-desc "$new_desc"
+      fi
       ;;
     *)
       break

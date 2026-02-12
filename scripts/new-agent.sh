@@ -172,6 +172,8 @@ if [[ -n "$TMUX" ]]; then
   tmux_cmd=$(printf '%q ' "${cmd_args[@]}")
   tmux new-session -d -s "$session_name" \
     -c "$dir" "$tmux_cmd"
+  desc="${prompt:0:80}"
+  tmux set-option -p -t "$session_name" @pilot-desc "$desc"
   tmux switch-client -t "$session_name"
 else
   "${cmd_args[@]}"

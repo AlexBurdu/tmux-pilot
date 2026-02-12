@@ -41,6 +41,7 @@ activity=$(tmux display-message -t "$target" -p '#{window_activity}' 2>/dev/null
 pane_cmd=$(tmux display-message -t "$target" -p '#{pane_current_command}' 2>/dev/null) || pane_cmd=""
 pane_pid=$(tmux display-message -t "$target" -p '#{pane_pid}' 2>/dev/null) || pane_pid=""
 pane_start=$(tmux display-message -t "$target" -p '#{pane_start_command}' 2>/dev/null) || pane_start=""
+desc=$(tmux display-message -t "$target" -p '#{@pilot-desc}' 2>/dev/null) || desc=""
 
 now=$(date +%s)
 
@@ -121,6 +122,9 @@ fi
 # Preview header
 printf '\033[1mPANE:\033[0m    %s  %s  %s\n' "$target" "$window" "$age"
 printf '\033[1mTITLE:\033[0m   %s\n' "$title"
+if [[ -n "$desc" ]]; then
+  printf '\033[1mDESC:\033[0m    %s\n' "$desc"
+fi
 printf '\033[1mWORKDIR:\033[0m \033[2m%s\033[0m\n' "$display_path"
 cmd_line="$pane_cmd"
 if [[ -n "$uptime_str" ]]; then
