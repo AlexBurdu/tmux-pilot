@@ -9,6 +9,7 @@
 set -euo pipefail
 
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$CURRENT_DIR/_agents.sh"
 # Unit separator — safe delimiter
 SEP=$'\x1f'
 
@@ -304,26 +305,12 @@ $display") || break  # esc / ctrl-c → exit
     alt-p)
       target=$(lookup "$idx" target) || continue
       agent=$(detect_agent "$target") || agent=""
-      case "$agent" in
-        claude)      tmux send-keys -t "$target" '/exit' Enter ;;
-        gemini)      tmux send-keys -t "$target" '/quit' Enter ;;
-        aider)       tmux send-keys -t "$target" '/exit' Enter ;;
-        goose)       tmux send-keys -t "$target" C-d ;;
-        *)           tmux send-keys -t "$target" C-c ;;
-      esac
+      agent_pause "$target" "$agent"
       ;;
     alt-r)
       target=$(lookup "$idx" target) || continue
       agent=$(detect_agent "$target") || agent=""
-      case "$agent" in
-        claude)      tmux send-keys -t "$target" 'claude --continue' Enter ;;
-        gemini)      tmux send-keys -t "$target" 'gemini' Enter ;;
-        aider)       tmux send-keys -t "$target" 'aider' Enter ;;
-        codex)       tmux send-keys -t "$target" 'codex' Enter ;;
-        goose)       tmux send-keys -t "$target" 'goose session resume' Enter ;;
-        interpreter) tmux send-keys -t "$target" 'interpreter' Enter ;;
-        *)           tmux send-keys -t "$target" "$agent" Enter ;;
-      esac
+      agent_resume "$target" "$agent"
       ;;
     alt-n)
       "$CURRENT_DIR/new-agent.sh"

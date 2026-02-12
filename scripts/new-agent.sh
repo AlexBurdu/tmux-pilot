@@ -4,6 +4,9 @@
 # -e is intentionally omitted — fzf exits non-zero on empty input
 set -uo pipefail
 
+CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$CURRENT_DIR/_agents.sh"
+
 # Detect available coding agents
 agents=""
 command -v claude &>/dev/null && agents+="claude"$'\n'
@@ -107,15 +110,7 @@ fi
 
 # Build agent command as an array — no eval needed.
 cmd_args=()
-case "$agent" in
-  claude)      cmd_args=(claude "$prompt") ;;
-  gemini)      cmd_args=(gemini "$prompt") ;;
-  aider)       cmd_args=(aider --message "$prompt") ;;
-  codex)       cmd_args=(codex "$prompt") ;;
-  goose)       cmd_args=(goose run "$prompt") ;;
-  interpreter) cmd_args=(interpreter --message "$prompt") ;;
-  *)           cmd_args=("$agent" "$prompt") ;;
-esac
+agent_build_cmd "$agent" "$prompt"
 
 # Generate session name: agent-action-number or agent-action-words
 prompt_lower=$(tr '[:upper:]' '[:lower:]' <<< "$prompt")
