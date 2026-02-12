@@ -134,7 +134,11 @@ list_panes() {
 PILOT_DATA=$(mktemp)
 trap 'rm -f "$PILOT_DATA"' EXIT
 
+# Build indexed data file and display list.
+# Usage: build_data [data_file]
+# Writes target<TAB>path to data_file (defaults to $PILOT_DATA).
 build_data() {
+  local data_file="${1:-$PILOT_DATA}"
   local tmpfile sorted
   tmpfile=$(mktemp)
   sorted=$(mktemp)
@@ -144,7 +148,7 @@ build_data() {
   rm -f "$tmpfile"
 
   # Data file: target<TAB>path (one per line, indexed)
-  cut -d$'\t' -f2,3 "$sorted" > "$PILOT_DATA"
+  cut -d$'\t' -f2,3 "$sorted" > "$data_file"
 
   # Display: index<TAB>visible columns
   local idx=1
@@ -164,51 +168,7 @@ if [[ "${1:-}" == "--list" ]]; then
     echo "error: --list requires data file path" >&2
     exit 1
   fi
-
-  tmpfile=$(mktemp)
-  sorted=$(mktemp)
-  now=$(date +%s)
-  ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
-
-  tmux list-panes -a -F \
-    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}" |
-  while IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid; do
-    [[ -n "$workdir" ]] && path="$workdir"
-    elapsed=$((now - activity))
-    if [ "$elapsed" -lt 60 ]; then
-      age="active"
-    elif [ "$elapsed" -lt 3600 ]; then
-      age="$((elapsed / 60))m ago"
-    elif [ "$elapsed" -lt 86400 ]; then
-      age="$((elapsed / 3600))h ago"
-    else
-      age="$((elapsed / 86400))d ago"
-    fi
-    max_ses=$((COL_SES - ${#win_idx} - 1))
-    [[ $max_ses -lt 2 ]] && max_ses=2
-    [[ ${#session} -gt $max_ses ]] && session="${session:0:$((max_ses - 2))}.."
-    [[ ${#name} -gt $COL_WIN ]] && name="${name:0:$((COL_WIN - 2))}.."
-    mem=$(pane_tree_mem "$pane_pid" <<< "$ps_data")
-    cpu=$(pane_tree_cpu "$pane_pid" <<< "$ps_data")
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$activity" "$target" "$path" \
-      "$session:$win_idx" "$name" "$age" "$cpu" "$mem"
-  done > "$tmpfile"
-
-  sort -t$'\t' -k1,1 -rn "$tmpfile" > "$sorted"
-  rm -f "$tmpfile"
-
-  # Overwrite the data file
-  cut -d$'\t' -f2,3 "$sorted" > "$data_file"
-
-  idx=1
-  cut -d$'\t' -f4- "$sorted" | format_display |
-  while IFS= read -r display_line; do
-    printf '%s\t%s\n' "$idx" "$display_line"
-    idx=$((idx + 1))
-  done
-
-  rm -f "$sorted"
+  build_data "$data_file"
   exit 0
 fi
 
