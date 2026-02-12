@@ -2,6 +2,9 @@
 # Shared agent configuration — launch commands, pause/resume.
 # Source this file; do not execute directly.
 
+# Single source of truth for supported agent names.
+KNOWN_AGENTS="claude gemini aider codex goose interpreter"
+
 # Build the command array for launching an agent with a prompt.
 # Sets the caller's cmd_args array.
 agent_build_cmd() {

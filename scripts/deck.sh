@@ -190,7 +190,7 @@ detect_agent() {
   local child_cmds
   child_cmds=$(ps -o comm= -p $children 2>/dev/null) || return 1
   local name
-  for name in claude gemini aider codex goose interpreter; do
+  for name in $KNOWN_AGENTS; do
     if grep -qw "$name" <<< "$child_cmds"; then
       printf '%s' "$name"
       return
