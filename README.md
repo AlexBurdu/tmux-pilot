@@ -49,9 +49,9 @@ SESSION            WINDOW    AGE     CPU  MEM
 | `Ctrl+D` / `Ctrl+U` | Scroll preview (half-page) |
 | `Alt+D` | Git diff popup for that pane's directory |
 | `Alt+S` | Commit + push worktree (WIP commit) |
-| `Alt+X` | Kill pane + cleanup worktree |
-| `Alt+P` | Pause agent (sends `/exit`) |
-| `Alt+R` | Resume agent (sends `claude --continue`) |
+| `Alt+X` | Kill pane + cleanup worktree (permanent, cannot resume) |
+| `Alt+P` | Pause agent (sends `/exit`, keeps pane alive for resume) |
+| `Alt+R` | Resume agent (sends `claude --continue`, only works after pause) |
 | `Alt+N` | Launch new agent |
 | `Esc` | Close deck |
 
