@@ -38,17 +38,17 @@ Example:
 │ Alt-n=new  Alt-e=desc                   │ CMD:     claude  uptime:31m                  │
 │ ──────────────────────────────────────  │ VCS:     git:fix-login (+2 ~1) ↑1            │
 │ SESSION           WINDOW  AGE  CPU  MEM │ ──────────────┤ PREVIEW ├─────────────────── │
-│▌cld-fix-login:0   🔥18:42 act  31% 2.1G│                                              │
+│▌cld-fix-login:0   🔥18:42 act  31%  2.1G│                                              │
 │ gem-refactor-au:0 running  3m   5%  826M│ I'll fix the OAuth callback handling.        │
 │ aider-docs:0      editing  8m   0%  412M│ Let me look at the auth module first...      │
-│ cld-issue-42:0    🖐18:30  15m  0%  1.3G│                                              │
+│ cld-issue-42:0    🖐18:30  15m   0%  1.3G│                                              │
 │ app:0             zsh      2h   0%  106M│ $ git diff src/auth/callback.ts              │
-│                                         │ + if (!state) return redirect('/login')       │
-│                                         │ - if (!state) throw new Error('missing')      │
+│                                         │ + if (!state) return redirect('/login')      │
+│                                         │ - if (!state) throw new Error('missing')     │
 │                                         │                                              │
-│                                         │ Fixed. Running tests now...                   │
-│                                         │ $ npm test                                    │
-│                                         │ PASS  src/auth/callback.test.ts (3 tests)     │
+│                                         │ Fixed. Running tests now...                  │
+│                                         │ $ npm test                                   │
+│                                         │ PASS  src/auth/callback.test.ts (3 tests)    │
 └─────────────────────────────────────────┴──────────────────────────────────────────────┘
 ```
 
