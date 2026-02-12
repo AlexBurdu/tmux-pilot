@@ -119,11 +119,13 @@ if [[ -n "$path" && -d "$path" ]]; then
   fi
 fi
 
-# Preview header
+# Preview header — always exactly 7 lines (padded) to match ~7 in deck.sh
 printf '\033[1mPANE:\033[0m    %s  %s  %s\n' "$target" "$window" "$age"
 printf '\033[1mTITLE:\033[0m   %s\n' "$title"
 if [[ -n "$desc" ]]; then
   printf '\033[1mDESC:\033[0m    %s\n' "$desc"
+else
+  printf '\n'
 fi
 printf '\033[1mWORKDIR:\033[0m \033[2m%s\033[0m\n' "$display_path"
 cmd_line="$pane_cmd"
@@ -133,6 +135,8 @@ fi
 printf '\033[1mCMD:\033[0m     %s\n' "$cmd_line"
 if [[ -n "$vcs_info" ]]; then
   printf '\033[1mVCS:\033[0m     %s\n' "$vcs_info"
+else
+  printf '\n'
 fi
 preview_w=${FZF_PREVIEW_COLUMNS:-40}
 label="┤ PREVIEW ├"
@@ -143,4 +147,7 @@ if [[ $left_len -gt 0 ]]; then printf '─%.0s' $(seq 1 "$left_len"); fi
 printf '\033[1m%s\033[0m' "$label"
 if [[ $right_len -gt 0 ]]; then printf '─%.0s' $(seq 1 "$right_len"); fi
 printf '\n'
-tmux capture-pane -t "$target" -p -e -S -500
+# Strip trailing blank lines (empty area below cursor) via $(),
+# then keep process alive so fzf's follow can hold scroll at bottom.
+printf '%s\n' "$(tmux capture-pane -t "$target" -p -e -S -500)"
+exec sleep infinity

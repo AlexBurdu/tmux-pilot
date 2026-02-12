@@ -234,15 +234,16 @@ display=$(build_data)
 while true; do
   result=$(fzf --ansi --no-sort --layout=reverse \
       --delimiter '\t' --with-nth 2 \
-      --header "Enter=attach  Ctrl-e/y=scroll  Ctrl-d/u=page
+      --header "Enter=attach  Ctrl-e/y=scroll  Ctrl-d/u=page  Ctrl-w=wrap
 Alt-d=diff  Alt-s=commit  Alt-x=kill
 Alt-p=pause  Alt-r=resume  Alt-n=new  Alt-e=desc
 $COL_SEP" \
       --header-lines=1 \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
-      --preview-window=right:60%:follow:~7:wrap \
+      --preview-window=right:60%:follow:~7 \
       --bind "ctrl-e:preview-down,ctrl-y:preview-up" \
       --bind "ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up" \
+      --bind "ctrl-w:change-preview-window(wrap|nowrap)" \
       --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n,alt-e" \
     <<< "0	$COL_HEADER
 $display") || break  # esc / ctrl-c → exit
