@@ -188,6 +188,7 @@ if [[ -n "$TMUX" ]]; then
     -c "$dir" "$tmux_cmd"
   desc="${prompt:0:80}"
   tmux set-option -p -t "$session_name" @pilot-desc "$desc"
+  tmux set-option -p -t "$session_name" @pilot-agent "$agent"
   tmux switch-client -t "$session_name"
 else
   "${cmd_args[@]}"

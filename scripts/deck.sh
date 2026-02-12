@@ -211,6 +211,33 @@ if [[ "${1:-}" == "--list" ]]; then
   exit 0
 fi
 
+# Detect which agent is running in a pane.
+# Checks @pilot-agent option first, then falls back to
+# scanning the pane's child processes for known agent names.
+detect_agent() {
+  local target="$1"
+  local agent
+  agent=$(tmux display-message -t "$target" -p '#{@pilot-agent}' 2>/dev/null)
+  if [[ -n "$agent" ]]; then
+    printf '%s' "$agent"
+    return
+  fi
+  # Fallback: scan child commands of pane PID
+  local pane_pid children
+  pane_pid=$(tmux display-message -t "$target" -p '#{pane_pid}' 2>/dev/null) || return 1
+  children=$(pgrep -P "$pane_pid" 2>/dev/null) || return 1
+  local child_cmds
+  child_cmds=$(ps -o comm= -p $children 2>/dev/null) || return 1
+  local name
+  for name in claude gemini aider codex goose interpreter; do
+    if grep -qw "$name" <<< "$child_cmds"; then
+      printf '%s' "$name"
+      return
+    fi
+  done
+  return 1
+}
+
 # Lookup target and path from data file by index
 lookup() {
   local idx="$1" field="$2"
@@ -276,11 +303,27 @@ $display") || break  # esc / ctrl-c → exit
       ;;
     alt-p)
       target=$(lookup "$idx" target) || continue
-      tmux send-keys -t "$target" '/exit' Enter
+      agent=$(detect_agent "$target") || agent=""
+      case "$agent" in
+        claude)      tmux send-keys -t "$target" '/exit' Enter ;;
+        gemini)      tmux send-keys -t "$target" '/quit' Enter ;;
+        aider)       tmux send-keys -t "$target" '/exit' Enter ;;
+        goose)       tmux send-keys -t "$target" C-d ;;
+        *)           tmux send-keys -t "$target" C-c ;;
+      esac
       ;;
     alt-r)
       target=$(lookup "$idx" target) || continue
-      tmux send-keys -t "$target" 'claude --continue' Enter
+      agent=$(detect_agent "$target") || agent=""
+      case "$agent" in
+        claude)      tmux send-keys -t "$target" 'claude --continue' Enter ;;
+        gemini)      tmux send-keys -t "$target" 'gemini' Enter ;;
+        aider)       tmux send-keys -t "$target" 'aider' Enter ;;
+        codex)       tmux send-keys -t "$target" 'codex' Enter ;;
+        goose)       tmux send-keys -t "$target" 'goose session resume' Enter ;;
+        interpreter) tmux send-keys -t "$target" 'interpreter' Enter ;;
+        *)           tmux send-keys -t "$target" "$agent" Enter ;;
+      esac
       ;;
     alt-n)
       "$CURRENT_DIR/new-agent.sh"
