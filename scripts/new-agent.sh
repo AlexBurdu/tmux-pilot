@@ -7,14 +7,11 @@ set -uo pipefail
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$CURRENT_DIR/_agents.sh"
 
-# Detect available coding agents
+# Detect available coding agents from the shared list
 agents=""
-command -v claude &>/dev/null && agents+="claude"$'\n'
-command -v gemini &>/dev/null && agents+="gemini"$'\n'
-command -v aider &>/dev/null && agents+="aider"$'\n'
-command -v codex &>/dev/null && agents+="codex"$'\n'
-command -v goose &>/dev/null && agents+="goose"$'\n'
-command -v interpreter &>/dev/null && agents+="interpreter"$'\n'
+for name in $KNOWN_AGENTS; do
+  command -v "$name" &>/dev/null && agents+="${name}"$'\n'
+done
 agents="${agents%$'\n'}"
 
 if [[ -z "$agents" ]]; then
