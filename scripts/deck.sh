@@ -183,19 +183,30 @@ detect_agent() {
     printf '%s' "$agent"
     return
   fi
-  # Fallback: scan child commands of pane PID
-  local pane_pid children
+  # Fallback: walk the full process tree under the pane PID
+  # and match command names against known agents.
+  local pane_pid
   pane_pid=$(tmux display-message -t "$target" -p '#{pane_pid}' 2>/dev/null) || return 1
-  children=$(pgrep -P "$pane_pid" 2>/dev/null) || return 1
-  local child_cmds
-  child_cmds=$(ps -o comm= -p $children 2>/dev/null) || return 1
-  local name
-  for name in $KNOWN_AGENTS; do
-    if grep -qw "$name" <<< "$child_cmds"; then
-      printf '%s' "$name"
-      return
-    fi
-  done
+  agent=$(ps -ax -o pid=,ppid=,comm= | awk \
+    -v root="$pane_pid" \
+    -v agents="$KNOWN_AGENTS" '
+    { ppid[$1]=$2; comm[$1]=$3 }
+    END {
+      pids[root]=1; changed=1
+      while (changed) {
+        changed=0
+        for (p in ppid)
+          if (!(p in pids) && ppid[p] in pids) { pids[p]=1; changed=1 }
+      }
+      n=split(agents, names, " ")
+      for (p in pids)
+        for (i=1; i<=n; i++)
+          if (comm[p] == names[i]) { print names[i]; exit }
+    }')
+  if [[ -n "$agent" ]]; then
+    printf '%s' "$agent"
+    return
+  fi
   return 1
 }
 
