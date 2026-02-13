@@ -62,15 +62,15 @@ if [[ -n "$session_override" ]]; then
 else
   prompt_lower=$(tr '[:upper:]' '[:lower:]' <<< "$prompt")
 
-  action=$(grep -oE '\b(fix|review|implement|add|update|refactor|remove|delete|debug|test|create|build|migrate|upgrade|optimize|document|improve|rewrite|move|rename|replace|clean|setup|configure)\b' <<< "$prompt_lower" | head -1)
-  num=$(grep -oE '[0-9]+' <<< "$prompt" | tail -1)
+  action=$(grep -oE '\b(fix|review|implement|add|update|refactor|remove|delete|debug|test|create|build|migrate|upgrade|optimize|document|improve|rewrite|move|rename|replace|clean|setup|configure)\b' <<< "$prompt_lower" | head -1 || true)
+  num=$(grep -oE '[0-9]+' <<< "$prompt" | tail -1 || true)
 
   if [[ -n "$action" && -n "$num" ]]; then
     suggestion="${agent}-${action}-${num}"
   elif [[ -n "$action" ]]; then
     words=$(sed -E 's|https?://[^ ]*||g' <<< "$prompt_lower" | \
       tr -cs '[:alnum:]' ' ' | tr -s ' ' | \
-      grep -oE '\b[a-z]{2,}\b' | grep -v "^${action}$" | head -2 | tr '\n' '-' | sed 's/-$//')
+      grep -oE '\b[a-z]{2,}\b' | grep -v "^${action}$" | head -2 | tr '\n' '-' | sed 's/-$//' || true)
     suggestion="${agent}-${action}-${words}"
   elif [[ -n "$num" ]]; then
     suggestion="${agent}-${num}"
