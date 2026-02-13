@@ -38,3 +38,41 @@ agent_resume() {
     *)           tmux send-keys -t "$target" "$agent" Enter ;;
   esac
 }
+
+# Detect which agent is running in a pane.
+# Checks @pilot-agent option first, then falls back to
+# scanning the pane's child processes for known agent names.
+detect_agent() {
+  local target="$1"
+  local agent
+  agent=$(tmux display-message -t "$target" -p '#{@pilot-agent}' 2>/dev/null)
+  if [[ -n "$agent" ]]; then
+    printf '%s' "$agent"
+    return
+  fi
+  # Fallback: walk the full process tree under the pane PID
+  # and match command names against known agents.
+  local pane_pid
+  pane_pid=$(tmux display-message -t "$target" -p '#{pane_pid}' 2>/dev/null) || return 1
+  agent=$(ps -ax -o pid=,ppid=,comm= | awk \
+    -v root="$pane_pid" \
+    -v agents="$KNOWN_AGENTS" '
+    { ppid[$1]=$2; comm[$1]=$3 }
+    END {
+      pids[root]=1; changed=1
+      while (changed) {
+        changed=0
+        for (p in ppid)
+          if (!(p in pids) && ppid[p] in pids) { pids[p]=1; changed=1 }
+      }
+      n=split(agents, names, " ")
+      for (p in pids)
+        for (i=1; i<=n; i++)
+          if (comm[p] == names[i]) { print names[i]; exit }
+    }')
+  if [[ -n "$agent" ]]; then
+    printf '%s' "$agent"
+    return
+  fi
+  return 1
+}

@@ -231,6 +231,47 @@ Add to `~/.gemini/settings.json`:
 | `scripts/vcs-status.sh` | VCS status popup (fugitive / lawrencium) |
 | `scripts/commit.sh` | WIP commit + push for a worktree |
 | `scripts/kill.sh` | Kill pane + cleanup worktree |
+| `scripts/spawn.sh` | Headless agent spawner (non-interactive, used by MCP server) |
+| `mcp/server.py` | MCP server exposing agent lifecycle tools |
+
+## MCP Server
+
+The MCP server lets any MCP-capable client (Claude Code, Gemini CLI, etc.) spawn and manage sibling agents programmatically — no interactive tmux popups needed.
+
+### Requirements
+
+- Python 3.10+
+- `fastmcp` package: `pip install fastmcp`
+
+### Registration
+
+Register the server with your MCP client so it auto-discovers the tools:
+
+**Claude Code:**
+
+```bash
+claude mcp add --scope user tmux-pilot -- \
+  python3 ~/.tmux/plugins/tmux-pilot/mcp/server.py
+```
+
+**Gemini CLI:**
+
+```bash
+gemini mcp add tmux-pilot -- \
+  python3 ~/.tmux/plugins/tmux-pilot/mcp/server.py
+```
+
+Adjust the path if you installed tmux-pilot elsewhere.
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `spawn_agent` | Create a new agent tmux session (agent, prompt, directory, optional session name) |
+| `list_agents` | List all running panes with agent, description, directory, age, CPU, memory |
+| `pause_agent` | Gracefully pause a running agent (keeps pane alive for resume) |
+| `resume_agent` | Resume a previously paused agent |
+| `kill_agent` | Kill an agent session and clean up its worktree |
 
 ## License
 
