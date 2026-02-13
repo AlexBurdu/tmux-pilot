@@ -238,20 +238,52 @@ Add to `~/.gemini/settings.json`:
 
 The MCP server lets any MCP-capable client (Claude Code, Gemini CLI, etc.) spawn and manage sibling agents programmatically — no interactive tmux popups needed.
 
-### Requirements
+This is also useful when developing tmux-pilot itself: an AI agent with the MCP server registered can spawn test sessions, inspect their state with `list_agents`, and clean them up — all without leaving the conversation.
 
-- Python 3.10+
-- `fastmcp` package: `pip install fastmcp`
+### Install fastmcp
+
+**macOS (Homebrew):**
+
+```bash
+brew install fastmcp
+```
+
+**Linux (pip):**
+
+```bash
+pip install fastmcp
+```
+
+Or with [pipx](https://pipx.pypa.io/) to avoid polluting your system Python:
+
+```bash
+pipx install fastmcp
+```
 
 ### Registration
 
-Register the server with your MCP client so it auto-discovers the tools:
+Register the server with your MCP client using the CLI or by editing the config file directly.
+
+Adjust the path below if you installed tmux-pilot elsewhere.
 
 **Claude Code:**
 
 ```bash
 claude mcp add --scope user tmux-pilot -- \
   python3 ~/.tmux/plugins/tmux-pilot/mcp/server.py
+```
+
+Or add to `~/.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "tmux-pilot": {
+      "command": "python3",
+      "args": ["~/.tmux/plugins/tmux-pilot/mcp/server.py"]
+    }
+  }
+}
 ```
 
 **Gemini CLI:**
@@ -261,7 +293,18 @@ gemini mcp add tmux-pilot -- \
   python3 ~/.tmux/plugins/tmux-pilot/mcp/server.py
 ```
 
-Adjust the path if you installed tmux-pilot elsewhere.
+Or add to `~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "tmux-pilot": {
+      "command": "python3",
+      "args": ["~/.tmux/plugins/tmux-pilot/mcp/server.py"]
+    }
+  }
+}
+```
 
 ### Tools
 
