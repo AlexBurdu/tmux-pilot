@@ -105,7 +105,10 @@ list_panes() {
   ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
   tmux list-panes -a -F \
     "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}" |
-  while IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid; do
+  while IFS= read -r _line; do
+    # tmux <3.5 escapes 0x1F to literal \037 in format output; decode it
+    _line="${_line//\\037/$SEP}"
+    IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid <<< "$_line"
     [[ -n "$workdir" ]] && path="$workdir"
     local elapsed=$((now - activity))
     local age

@@ -131,6 +131,8 @@ def list_agents() -> str:
     lines: list[str] = []
 
     for raw_line in result.stdout.strip().splitlines():
+        # tmux <3.5 escapes 0x1F to literal \037 in format output; decode it
+        raw_line = raw_line.replace("\\037", sep)
         parts = raw_line.split(sep)
         if len(parts) < 7:
             continue
