@@ -104,11 +104,11 @@ list_panes() {
   now=$(date +%s)
   ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
   tmux list-panes -a -F \
-    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}" |
+    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}${SEP}#{@pilot-host}" |
   while IFS= read -r _line; do
     # tmux <3.5 escapes 0x1F to literal \037 in format output; decode it
     _line="${_line//\\037/$SEP}"
-    IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid <<< "$_line"
+    IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid pilot_host <<< "$_line"
     [[ -n "$workdir" ]] && path="$workdir"
     local elapsed=$((now - activity))
     local age
@@ -120,6 +120,10 @@ list_panes() {
       age="$((elapsed / 3600))h ago"
     else
       age="$((elapsed / 86400))d ago"
+    fi
+    # Append @host suffix when running on a remote host
+    if [[ -n "$pilot_host" ]]; then
+      session="${session}@${pilot_host}"
     fi
     local max_ses=$((COL_SES - ${#win_idx} - 1))
     [[ $max_ses -lt 2 ]] && max_ses=2

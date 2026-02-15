@@ -4,20 +4,24 @@
 #
 # Usage:
 #   spawn.sh --agent <name> --prompt <text> --dir <path> [--session <name>]
+#            [--host <hostname>] [--mode local-ssh|remote-tmux]
 #
 # Outputs the session name to stdout on success.
 set -euo pipefail
 
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$CURRENT_DIR/_agents.sh"
+source "$CURRENT_DIR/_hosts.sh"
 
-agent="" prompt="" dir="" session_override=""
+agent="" prompt="" dir="" session_override="" host="" mode=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --agent)  agent="$2"; shift 2 ;;
-    --prompt) prompt="$2"; shift 2 ;;
-    --dir)    dir="$2"; shift 2 ;;
+    --agent)   agent="$2"; shift 2 ;;
+    --prompt)  prompt="$2"; shift 2 ;;
+    --dir)     dir="$2"; shift 2 ;;
     --session) session_override="$2"; shift 2 ;;
+    --host)    host="$2"; shift 2 ;;
+    --mode)    mode="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -32,6 +36,17 @@ if [[ -z "$dir" ]]; then
   echo "error: --dir is required" >&2; exit 1
 fi
 
+# Validate host/mode combination
+if [[ -n "$host" && -z "$mode" ]]; then
+  mode="local-ssh"
+fi
+if [[ -n "$mode" && -z "$host" ]]; then
+  echo "error: --mode requires --host" >&2; exit 1
+fi
+if [[ -n "$mode" && "$mode" != "local-ssh" && "$mode" != "remote-tmux" ]]; then
+  echo "error: --mode must be 'local-ssh' or 'remote-tmux'" >&2; exit 1
+fi
+
 # Validate agent name against known list (before any system calls)
 valid=false
 for name in $KNOWN_AGENTS; do
@@ -41,14 +56,14 @@ if ! $valid; then
   echo "error: unknown agent '$agent' (known: $KNOWN_AGENTS)" >&2; exit 1
 fi
 
-# Validate agent is installed
-if ! command -v "$agent" &>/dev/null; then
-  echo "error: agent '$agent' is not installed" >&2; exit 1
-fi
+# Note: no local "command -v" check — the tmux server may
+# be remote, so the binary only needs to exist there.
 
-# Validate/create directory
-if [[ ! -d "$dir" ]]; then
-  mkdir -p "$dir"
+# Validate/create directory (skip for remote modes — directory is on the remote host)
+if [[ -z "$host" ]]; then
+  if [[ ! -d "$dir" ]]; then
+    mkdir -p "$dir"
+  fi
 fi
 
 # Build agent command
@@ -87,26 +102,56 @@ if [[ -z "$session_name" ]]; then
   echo "error: could not generate session name" >&2; exit 1
 fi
 
-# Resolve session name collisions
-if tmux has-session -t "=$session_name" 2>/dev/null; then
-  n=2
-  while (( n <= 99 )); do
-    suffix="-${n}"
-    candidate="${session_name:0:$((17 - ${#suffix}))}${suffix}"
-    if ! tmux has-session -t "=$candidate" 2>/dev/null; then
-      session_name="$candidate"
-      break
-    fi
-    ((n++))
-  done
+# Resolve session name collisions (local tmux only)
+if [[ "$mode" != "remote-tmux" ]]; then
+  if tmux has-session -t "=$session_name" 2>/dev/null; then
+    n=2
+    while (( n <= 99 )); do
+      suffix="-${n}"
+      candidate="${session_name:0:$((17 - ${#suffix}))}${suffix}"
+      if ! tmux has-session -t "=$candidate" 2>/dev/null; then
+        session_name="$candidate"
+        break
+      fi
+      ((n++))
+    done
+  fi
 fi
 
-# Serialize array for tmux's shell string argument
+# Serialize array for tmux's shell string argument.
+# Prepend common user binary dirs to PATH — tmux
+# sessions inherit a minimal server environment that
+# may not include ~/.local/bin or ~/bin.
+# For other env vars (ANDROID_HOME, JAVA_HOME, etc.)
+# use: tmux set-environment -g VAR value
 tmux_cmd=$(printf '%q ' "${cmd_args[@]}")
-tmux new-session -d -s "$session_name" \
-  -c "$dir" "$tmux_cmd"
+path_prefix='PATH="$HOME/.local/bin:$HOME/bin:$HOME/go/bin:$PATH"'
 desc="${prompt:0:80}"
-tmux set-option -p -t "$session_name" @pilot-desc "$desc"
-tmux set-option -p -t "$session_name" @pilot-agent "$agent"
 
-printf '%s' "$session_name"
+if [[ "$mode" == "remote-tmux" ]]; then
+  # Fully remote: create a tmux session on the remote host via SSH
+  ssh -o ConnectTimeout=10 "$host" \
+    "tmux new-session -d -s '$session_name' -c '$dir' '$path_prefix $tmux_cmd' && \
+     tmux set-option -p -t '$session_name' @pilot-desc '$desc' && \
+     tmux set-option -p -t '$session_name' @pilot-agent '$agent'"
+  cache_host "$host"
+  printf '%s' "$session_name"
+elif [[ "$mode" == "local-ssh" ]]; then
+  # Local pane that SSHs into the remote host
+  tmux new-session -d -s "$session_name" \
+    "ssh -t $host 'cd $dir && $path_prefix $tmux_cmd'"
+  tmux set-option -p -t "$session_name" @pilot-desc "$desc"
+  tmux set-option -p -t "$session_name" @pilot-agent "$agent"
+  tmux set-option -p -t "$session_name" @pilot-host "$host"
+  tmux set-option -p -t "$session_name" @pilot-mode "$mode"
+  cache_host "$host"
+  printf '%s' "$session_name"
+else
+  # Local (default — unchanged behavior)
+  tmux new-session -d -s "$session_name" \
+    -c "$dir" \
+    "$path_prefix $tmux_cmd"
+  tmux set-option -p -t "$session_name" @pilot-desc "$desc"
+  tmux set-option -p -t "$session_name" @pilot-agent "$agent"
+  printf '%s' "$session_name"
+fi

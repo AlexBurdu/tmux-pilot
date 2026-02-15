@@ -42,6 +42,8 @@ pane_cmd=$(tmux display-message -t "$target" -p '#{pane_current_command}' 2>/dev
 pane_pid=$(tmux display-message -t "$target" -p '#{pane_pid}' 2>/dev/null) || pane_pid=""
 pane_start=$(tmux display-message -t "$target" -p '#{pane_start_command}' 2>/dev/null) || pane_start=""
 desc=$(tmux display-message -t "$target" -p '#{@pilot-desc}' 2>/dev/null) || desc=""
+pilot_host=$(tmux display-message -t "$target" -p '#{@pilot-host}' 2>/dev/null) || pilot_host=""
+pilot_mode=$(tmux display-message -t "$target" -p '#{@pilot-mode}' 2>/dev/null) || pilot_mode=""
 
 now=$(date +%s)
 
@@ -122,8 +124,14 @@ fi
 # Preview header — always exactly 7 lines (padded) to match ~7 in deck.sh
 printf '\033[1mPANE:\033[0m    %s  %s  %s\n' "$target" "$window" "$age"
 printf '\033[1mTITLE:\033[0m   %s\n' "$title"
+host_suffix=""
+if [[ -n "$pilot_host" ]]; then
+  host_suffix="  [$pilot_host via $pilot_mode]"
+fi
 if [[ -n "$desc" ]]; then
-  printf '\033[1mDESC:\033[0m    %s\n' "$desc"
+  printf '\033[1mDESC:\033[0m    %s%s\n' "$desc" "$host_suffix"
+elif [[ -n "$pilot_host" ]]; then
+  printf '\033[1mHOST:\033[0m    %s (%s)\n' "$pilot_host" "$pilot_mode"
 else
   printf '\n'
 fi

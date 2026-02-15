@@ -42,6 +42,8 @@ def spawn_agent(
     prompt: str,
     directory: str,
     session_name: str | None = None,
+    host: str | None = None,
+    mode: str | None = None,
 ) -> str:
     """Create a new AI agent in its own tmux session.
 
@@ -50,6 +52,10 @@ def spawn_agent(
         prompt: The task prompt to send to the agent.
         directory: Working directory for the agent session.
         session_name: Optional session name (auto-generated from prompt if omitted).
+        host: Optional remote hostname (launches agent on remote machine via SSH).
+        mode: Execution mode when host is set: "local-ssh" (local pane over SSH,
+              visible in deck) or "remote-tmux" (fully remote tmux session).
+              Defaults to "local-ssh".
     """
     cmd = [
         os.path.join(SCRIPTS_DIR, "spawn.sh"),
@@ -59,11 +65,22 @@ def spawn_agent(
     ]
     if session_name:
         cmd += ["--session", session_name]
+    if host:
+        cmd += ["--host", host]
+    if mode:
+        cmd += ["--mode", mode]
 
     result = _run(cmd)
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
-    return f"Spawned session: {result.stdout.strip()}"
+    name = result.stdout.strip()
+    effective_mode = mode or ("local-ssh" if host else None)
+    if effective_mode == "remote-tmux":
+        return (
+            f"Remote session created: {name}\n"
+            f"Attach with: ssh {host} -t \"tmux attach -t {name}\""
+        )
+    return f"Spawned session: {name}"
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +97,9 @@ def list_agents() -> str:
         f"#{{@pilot-workdir}}{sep}"
         f"#{{pane_current_path}}{sep}"
         f"#{{window_activity}}{sep}"
-        f"#{{pane_pid}}"
+        f"#{{pane_pid}}{sep}"
+        f"#{{@pilot-host}}{sep}"
+        f"#{{@pilot-mode}}"
     )
     result = _run(["tmux", "list-panes", "-a", "-F", fmt])
     if result.returncode != 0:
@@ -140,7 +159,10 @@ def list_agents() -> str:
         parts = raw_line.split(sep)
         if len(parts) < 7:
             continue
-        target, agent, desc, workdir, path, activity_s, pane_pid_s = parts
+        # Pad to 9 fields for backwards compat with older tmux metadata
+        while len(parts) < 9:
+            parts.append("")
+        target, agent, desc, workdir, path, activity_s, pane_pid_s, phost, pmode = parts
 
         directory = workdir if workdir else path
         try:
@@ -158,6 +180,7 @@ def list_agents() -> str:
             mem_str = "?"
             cpu_str = "?"
 
+        host_info = f"  host={phost} ({pmode})" if phost else ""
         entry = (
             f"  {target}"
             f"  agent={agent or '?'}"
@@ -166,6 +189,7 @@ def list_agents() -> str:
             f"  age={age}"
             f"  cpu={cpu_str}"
             f"  mem={mem_str}"
+            f"{host_info}"
         )
         lines.append(entry)
 

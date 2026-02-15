@@ -17,7 +17,7 @@ key_deck=$(get_opt "@pilot-key-deck" "g")
 key_vcs=$(get_opt "@pilot-key-vcs-status" "d")
 
 popup_new_w=$(get_opt "@pilot-popup-new-agent-width" "40%")
-popup_new_h=$(get_opt "@pilot-popup-new-agent-height" "30%")
+popup_new_h=$(get_opt "@pilot-popup-new-agent-height" "50%")
 popup_deck_w=$(get_opt "@pilot-popup-deck-width" "95%")
 popup_deck_h=$(get_opt "@pilot-popup-deck-height" "90%")
 popup_vcs_w=$(get_opt "@pilot-popup-vcs-status-width" "95%")

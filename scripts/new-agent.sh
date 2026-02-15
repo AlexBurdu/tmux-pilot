@@ -6,6 +6,7 @@ set -uo pipefail
 
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$CURRENT_DIR/_agents.sh"
+source "$CURRENT_DIR/_hosts.sh"
 
 # Detect available coding agents from the shared list
 agents=""
@@ -22,14 +23,15 @@ if [[ -z "$agents" ]]; then
   exit 1
 fi
 
-# Determine total steps (skip agent picker if only one)
+# Determine total steps dynamically
+# Base: prompt + location + directory = 3
+# Optional: agent picker (+1), host (+1), mode (+1)
 multi_agent=false
 [[ "$agents" == *$'\n'* ]] && multi_agent=true
-if $multi_agent; then
-  total=3; step=1
-else
-  total=2; step=1
-fi
+total=3  # prompt + location + directory
+$multi_agent && total=$((total + 1))
+# location=remote adds host + mode steps (adjusted later)
+step=1
 
 esc_hint="(Esc to cancel)"
 
@@ -66,6 +68,58 @@ if [[ -z "$prompt" ]]; then
 fi
 ((step++))
 
+# Location picker: local or remote
+printf '\n  [%d/%d] Location %s\n' \
+  "$step" "$total" "$esc_hint"
+location=$(printf 'local\nremote\n' | \
+  fzf --no-info --no-separator --height=3 --reverse)
+
+if [[ -z "$location" ]]; then
+  exit 0
+fi
+((step++))
+
+host="" mode=""
+if [[ "$location" == "remote" ]]; then
+  # Add host + mode steps to total
+  total=$((total + 2))
+
+  # Host picker
+  printf '\n  [%d/%d] Host %s\n' \
+    "$step" "$total" "$esc_hint"
+  known=$(all_known_hosts)
+  if [[ -n "$known" ]]; then
+    fzf_out=$(fzf --print-query --no-info --no-separator \
+      --height=8 --reverse --prompt "  > " \
+      <<< "$known" || true)
+  else
+    printf '  Type a hostname:\n'
+    fzf_out=$(fzf --print-query --no-info --no-separator \
+      --height=2 --reverse --prompt "  > " \
+      < /dev/null || true)
+  fi
+  # --print-query: line 1 = query, line 2 = selected (or empty)
+  typed=$(sed -n '1p' <<< "$fzf_out")
+  selected=$(sed -n '2p' <<< "$fzf_out")
+  host="${selected:-$typed}"
+
+  if [[ -z "$host" ]]; then
+    exit 0
+  fi
+  ((step++))
+
+  # Mode picker
+  printf '\n  [%d/%d] Execution mode %s\n' \
+    "$step" "$total" "$esc_hint"
+  mode=$(printf 'local-ssh\nremote-tmux\n' | \
+    fzf --no-info --no-separator --height=3 --reverse)
+
+  if [[ -z "$mode" ]]; then
+    exit 0
+  fi
+  ((step++))
+fi
+
 # Skip picker if only one agent is available
 if $multi_agent; then
   printf '\n  [%d/%d] Select an agent %s\n' \
@@ -83,16 +137,26 @@ fi
 # Directory picker
 printf '\n  [%d/%d] Working directory %s\n' \
   "$step" "$total" "$esc_hint"
-if command -v zoxide &>/dev/null; then
-  dir=$(zoxide query -l |
-    fzf --no-info --no-separator --height=10 \
-      --reverse --print-query \
-      --query "$PWD" |
-    tail -1)
+if [[ -n "$host" ]]; then
+  # Remote: no zoxide, let user type a remote path
+  printf '  Remote path on %s:\n' "$host"
+  fzf_out=$(fzf --print-query --no-info --no-separator \
+    --height=2 --reverse --prompt "  > " \
+    --query "\$HOME" \
+    < /dev/null || true)
+  dir=$(sed -n '1p' <<< "$fzf_out")
 else
-  read -rp "  [$PWD]: " dir
-  if [[ "$dir" == $'\e'* ]]; then
-    exit 0
+  if command -v zoxide &>/dev/null; then
+    dir=$(zoxide query -l |
+      fzf --no-info --no-separator --height=10 \
+        --reverse --print-query \
+        --query "$PWD" |
+      tail -1)
+  else
+    read -rp "  [$PWD]: " dir
+    if [[ "$dir" == $'\e'* ]]; then
+      exit 0
+    fi
   fi
 fi
 
@@ -101,7 +165,7 @@ if [[ -z "$dir" || "$dir" == "exit" ]]; then
 fi
 dir="${dir:-$PWD}"
 
-if [[ ! -d "$dir" ]]; then
+if [[ -z "$host" && ! -d "$dir" ]]; then
   mkdir -p "$dir"
 fi
 
@@ -142,6 +206,9 @@ suggestion="${suggestion:0:17}"
 short_dir="${dir/#$HOME/\~}"
 printf '\n  Agent:    %s\n' "$agent"
 printf '  Dir:      %s\n' "$short_dir"
+if [[ -n "$host" ]]; then
+  printf '  Host:     %s (%s)\n' "$host" "$mode"
+fi
 printf '  Prompt:   %s\n\n' "$prompt"
 printf '  Session name (edit or Enter to confirm, Esc to cancel):\n'
 session_name=$(fzf --print-query --query "$suggestion" --prompt "  " \
@@ -160,28 +227,45 @@ if [[ -z "$session_name" ]]; then
 fi
 
 if [[ -n "$TMUX" ]]; then
-  # Resolve session name collisions by appending a numeric suffix
-  if tmux has-session -t "=$session_name" 2>/dev/null; then
-    n=2
-    while (( n <= 99 )); do
-      suffix="-${n}"
-      candidate="${session_name:0:$((17 - ${#suffix}))}${suffix}"
-      if ! tmux has-session -t "=$candidate" 2>/dev/null; then
-        session_name="$candidate"
-        break
-      fi
-      ((n++))
-    done
-  fi
+  if [[ -n "$host" ]]; then
+    # Delegate to spawn.sh for remote launches
+    result=$("$CURRENT_DIR/spawn.sh" \
+      --agent "$agent" --prompt "$prompt" --dir "$dir" \
+      --session "$session_name" --host "$host" --mode "$mode")
 
-  # Serialize array for tmux's shell string argument
-  tmux_cmd=$(printf '%q ' "${cmd_args[@]}")
-  tmux new-session -d -s "$session_name" \
-    -c "$dir" "$tmux_cmd"
-  desc="${prompt:0:80}"
-  tmux set-option -p -t "$session_name" @pilot-desc "$desc"
-  tmux set-option -p -t "$session_name" @pilot-agent "$agent"
-  tmux switch-client -t "$session_name"
+    if [[ "$mode" == "remote-tmux" ]]; then
+      printf '\n  Remote session created: %s\n' "$result"
+      printf '  Attach with: ssh %s -t "tmux attach -t %s"\n\n' "$host" "$result"
+      printf '  Press Enter to close.'
+      read -r
+    else
+      tmux switch-client -t "$result"
+    fi
+  else
+    # Local launch (unchanged behavior)
+    # Resolve session name collisions by appending a numeric suffix
+    if tmux has-session -t "=$session_name" 2>/dev/null; then
+      n=2
+      while (( n <= 99 )); do
+        suffix="-${n}"
+        candidate="${session_name:0:$((17 - ${#suffix}))}${suffix}"
+        if ! tmux has-session -t "=$candidate" 2>/dev/null; then
+          session_name="$candidate"
+          break
+        fi
+        ((n++))
+      done
+    fi
+
+    # Serialize array for tmux's shell string argument
+    tmux_cmd=$(printf '%q ' "${cmd_args[@]}")
+    tmux new-session -d -s "$session_name" \
+      -c "$dir" "$tmux_cmd"
+    desc="${prompt:0:80}"
+    tmux set-option -p -t "$session_name" @pilot-desc "$desc"
+    tmux set-option -p -t "$session_name" @pilot-agent "$agent"
+    tmux switch-client -t "$session_name"
+  fi
 else
   "${cmd_args[@]}"
 fi
