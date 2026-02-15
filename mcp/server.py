@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # /// script
+# requires-python = ">=3.10"
 # dependencies = ["fastmcp>=2.0"]
 # ///
 """tmux-pilot MCP server — agent lifecycle tools for MCP-capable clients."""
