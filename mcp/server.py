@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# dependencies = ["fastmcp>=2.0"]
+# ///
 """tmux-pilot MCP server — agent lifecycle tools for MCP-capable clients."""
 
 import os
