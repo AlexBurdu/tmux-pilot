@@ -10,6 +10,7 @@ KNOWN_AGENTS="claude gemini aider codex goose interpreter"
 agent_build_cmd() {
   local agent="$1" prompt="$2"
   case "$agent" in
+    gemini)      cmd_args=(bash -lc 'exec gemini "$0"' "$prompt") ;;
     aider)       cmd_args=(aider --message "$prompt") ;;
     goose)       cmd_args=(goose run "$prompt") ;;
     interpreter) cmd_args=(interpreter --message "$prompt") ;;
@@ -34,6 +35,7 @@ agent_resume() {
   local target="$1" agent="$2"
   case "$agent" in
     claude)      tmux send-keys -t "$target" 'claude --continue' Enter ;;
+    gemini)      tmux send-keys -t "$target" "bash -lc gemini" Enter ;;
     goose)       tmux send-keys -t "$target" 'goose session resume' Enter ;;
     *)           tmux send-keys -t "$target" "$agent" Enter ;;
   esac
