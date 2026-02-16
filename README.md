@@ -315,6 +315,8 @@ Or add to `~/.gemini/settings.json`:
 | `pause_agent` | Gracefully pause a running agent (keeps pane alive for resume) |
 | `resume_agent` | Resume a previously paused agent |
 | `kill_agent` | Kill an agent session and clean up its worktree |
+| `capture_pane` | Capture terminal text from a pane (target, optional line count) |
+| `send_keys` | Send text or control keys to a pane (uses paste-buffer for text to bypass popups) |
 
 ## License
 

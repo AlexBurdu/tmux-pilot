@@ -25,6 +25,16 @@ def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
 # Tmux target format: session:window.pane (window/pane parts optional)
 _TARGET_RE = re.compile(r"^[\w.:-]+$")
 
+# Tmux special key names that must go through send-keys (cannot be pasted).
+_TMUX_SPECIAL_KEY_RE = re.compile(
+    r"^("
+    r"Enter|Escape|Tab|BTab|Space|BSpace|NPage|PPage|"
+    r"Up|Down|Left|Right|Home|End|IC|DC|"
+    r"F[0-9]{1,2}|"
+    r"[CMS]-.+"
+    r")$"
+)
+
 
 def _validate_target(target: str) -> str | None:
     """Return an error message if target looks invalid, else None."""
@@ -279,6 +289,62 @@ def kill_agent(target: str) -> str:
 
     output = result.stdout.strip()
     return output if output else f"Killed {target}"
+
+
+# ---------------------------------------------------------------------------
+# capture_pane
+# ---------------------------------------------------------------------------
+@mcp.tool()
+def capture_pane(target: str, lines: int = 20) -> str:
+    """Capture terminal text content from a tmux pane.
+
+    Args:
+        target: tmux pane target (e.g. "my-session:0.0").
+        lines: Number of lines to capture from bottom (default 20).
+    """
+    if err := _validate_target(target):
+        return f"Error: {err}"
+    if lines < 1:
+        return "Error: lines must be >= 1"
+    result = _run(["tmux", "capture-pane", "-t", target, "-p", "-S", f"-{lines}"])
+    if result.returncode != 0:
+        return f"Error: {result.stderr.strip()}"
+    return result.stdout
+
+
+# ---------------------------------------------------------------------------
+# send_keys
+# ---------------------------------------------------------------------------
+@mcp.tool()
+def send_keys(target: str, keys: str) -> str:
+    """Send text or key names to a tmux pane.
+
+    For multi-line text, uses load-buffer + paste-buffer to write directly to
+    the pane PTY, bypassing tmux popup/overlay interception. For single
+    control keys (Enter, C-c, etc.), uses send-keys directly.
+
+    Args:
+        target: tmux pane target (e.g. "my-session:0.0").
+        keys: Text or key names to send (e.g. "Enter", "BTab", "C-c", or arbitrary text).
+    """
+    if err := _validate_target(target):
+        return f"Error: {err}"
+    if not keys:
+        return "Error: keys must not be empty"
+
+    if _TMUX_SPECIAL_KEY_RE.match(keys):
+        # Single control/special key — send directly via send-keys.
+        result = _run(["tmux", "send-keys", "-t", target, keys])
+    else:
+        # Text payload — use load-buffer + paste-buffer to bypass overlays.
+        result = _run(["tmux", "load-buffer", "-"], input=keys)
+        if result.returncode != 0:
+            return f"Error loading buffer: {result.stderr.strip()}"
+        result = _run(["tmux", "paste-buffer", "-d", "-p", "-t", target])
+
+    if result.returncode != 0:
+        return f"Error: {result.stderr.strip()}"
+    return f"Sent keys to {target}"
 
 
 if __name__ == "__main__":
