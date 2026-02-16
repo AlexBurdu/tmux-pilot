@@ -1,0 +1,6 @@
+  I'll update the authentication module now.
+
+  Allow Edit to /path/to/src/auth/login.kt?
+
+  1. Yes  2. Yes, allow all Edit operations  3. No
+

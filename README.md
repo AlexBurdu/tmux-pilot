@@ -317,6 +317,7 @@ Or add to `~/.gemini/settings.json`:
 | `kill_agent` | Kill an agent session and clean up its worktree |
 | `capture_pane` | Capture terminal text from a pane (target, optional line count) |
 | `send_keys` | Send text or control keys to a pane (uses paste-buffer for text to bypass popups) |
+| `monitor_agents` | Monitor all agent panes for permission prompts (risk-classified) and lifecycle events |
 
 ## License
 

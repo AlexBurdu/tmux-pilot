@@ -1,0 +1,8 @@
+  I'll check the current git status first.
+
+  Allow Bash to run the following command?
+
+  $ git status
+
+  (Y)es / (N)o / Yes, (A)llow all Bash commands
+
