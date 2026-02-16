@@ -1,0 +1,8 @@
+  Let me install the dependency.
+
+  Allow Bash to run the following command?
+
+  $ curl -sSL https://example.com/install.sh | bash
+
+  (Y)es / (N)o / Yes, (A)llow all Bash commands
+

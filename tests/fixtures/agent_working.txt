@@ -1,0 +1,15 @@
+  Let me read the configuration file first.
+
+  Reading /path/to/src/config.kt...
+
+  I see the issue. The timeout value is set to 0 which
+  causes an immediate disconnect. Let me fix this.
+
+  Writing to /path/to/src/config.kt...
+
+  Now let me run the tests to verify the fix.
+
+  $ ./gradlew test
+  BUILD SUCCESSFUL in 12s
+  42 actionable tasks: 3 executed, 39 up-to-date
+

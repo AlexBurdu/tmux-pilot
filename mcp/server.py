@@ -12,6 +12,14 @@ import time
 
 from fastmcp import FastMCP
 
+from monitor import (
+    PaneReport,
+    detect_events,
+    detect_prompts,
+    format_report,
+    infer_status,
+)
+
 SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts")
 
 mcp = FastMCP("tmux-pilot")
@@ -345,6 +353,77 @@ def send_keys(target: str, keys: str) -> str:
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
     return f"Sent keys to {target}"
+
+
+# ---------------------------------------------------------------------------
+# monitor_agents
+# ---------------------------------------------------------------------------
+_MONITOR_CAPTURE_LINES = 50
+
+
+@mcp.tool()
+def monitor_agents() -> str:
+    """Monitor all agent panes for permission prompts and lifecycle events.
+
+    Captures recent output from every agent pane, detects Claude Code permission
+    prompts, classifies them by risk (safe/low/high), and detects lifecycle
+    events (PR created, agent finished, context low).
+
+    Returns a structured report with status, prompts, and events per pane.
+    When nothing is actionable, returns a compact summary.
+    """
+    sep = "\x1f"
+    fmt = (
+        f"#{{session_name}}:#{{window_index}}"
+        f".#{{pane_index}}{sep}"
+        f"#{{@pilot-agent}}"
+    )
+    result = _run(
+        ["tmux", "list-panes", "-a", "-F", fmt]
+    )
+    if result.returncode != 0:
+        return f"Error: {result.stderr.strip()}"
+
+    if not result.stdout.strip():
+        return "No agent panes found."
+
+    reports: list[PaneReport] = []
+
+    for raw_line in result.stdout.strip().splitlines():
+        raw_line = raw_line.replace("\\037", sep)
+        parts = raw_line.split(sep)
+        if len(parts) < 2:
+            continue
+        target = parts[0]
+        agent = parts[1] if len(parts) > 1 else ""
+
+        # Skip non-agent panes (no @pilot-agent set)
+        if not agent:
+            continue
+
+        # Capture pane output
+        cap = _run([
+            "tmux", "capture-pane",
+            "-t", target, "-p",
+            "-S", f"-{_MONITOR_CAPTURE_LINES}",
+        ])
+        if cap.returncode != 0:
+            continue
+        text = cap.stdout
+
+        prompts = detect_prompts(text)
+        events = detect_events(text)
+        status = infer_status(prompts, events)
+
+        reports.append(PaneReport(
+            target=target,
+            agent=agent,
+            status=status,
+            prompts=prompts,
+            events=events,
+        ))
+
+    return format_report(reports)
 
 
 if __name__ == "__main__":

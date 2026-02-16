@@ -1,0 +1,8 @@
+  All tests pass. Let me push the branch now.
+
+  Allow Bash to run the following command?
+
+  $ git push -u origin issue-42
+
+  (Y)es / (N)o / Yes, (A)llow all Bash commands
+
