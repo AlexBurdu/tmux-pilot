@@ -10,7 +10,7 @@ KNOWN_AGENTS="claude gemini aider codex goose interpreter"
 agent_build_cmd() {
   local agent="$1" prompt="$2"
   case "$agent" in
-    gemini)      cmd_args=(bash -lc 'exec gemini "$0"' "$prompt") ;;
+    gemini)      cmd_args=(bash -lc 'exec gemini -y "$0"' "$prompt") ;;
     aider)       cmd_args=(aider --message "$prompt") ;;
     goose)       cmd_args=(goose run "$prompt") ;;
     interpreter) cmd_args=(interpreter --message "$prompt") ;;
@@ -18,13 +18,22 @@ agent_build_cmd() {
   esac
 }
 
+# Send text to a pane via paste-buffer (bypasses popup overlays).
+# Control keys still use send-keys since paste-buffer can't send them.
+_send_text() {
+  local target="$1" text="$2"
+  printf '%s' "$text" | tmux load-buffer -
+  tmux paste-buffer -d -p -t "$target"
+  tmux send-keys -t "$target" Enter
+}
+
 # Send the appropriate stop command to a pane.
 agent_pause() {
   local target="$1" agent="$2"
   case "$agent" in
-    claude)      tmux send-keys -t "$target" '/exit' Enter ;;
-    gemini)      tmux send-keys -t "$target" '/quit' Enter ;;
-    aider)       tmux send-keys -t "$target" '/exit' Enter ;;
+    claude)      _send_text "$target" '/exit' ;;
+    gemini)      _send_text "$target" '/quit' ;;
+    aider)       _send_text "$target" '/exit' ;;
     goose)       tmux send-keys -t "$target" C-d ;;
     *)           tmux send-keys -t "$target" C-c ;;
   esac
@@ -34,10 +43,10 @@ agent_pause() {
 agent_resume() {
   local target="$1" agent="$2"
   case "$agent" in
-    claude)      tmux send-keys -t "$target" 'claude --continue' Enter ;;
-    gemini)      tmux send-keys -t "$target" "bash -lc gemini" Enter ;;
-    goose)       tmux send-keys -t "$target" 'goose session resume' Enter ;;
-    *)           tmux send-keys -t "$target" "$agent" Enter ;;
+    claude)      _send_text "$target" 'claude --continue' ;;
+    gemini)      _send_text "$target" "bash -lc 'gemini -y'" ;;
+    goose)       _send_text "$target" 'goose session resume' ;;
+    *)           _send_text "$target" "$agent" ;;
   esac
 }
 
