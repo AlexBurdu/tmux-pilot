@@ -23,7 +23,7 @@ Each agent gets its own tmux session. The session name is derived from the promp
 
 An fzf-based popup listing all panes across all sessions, sorted by most recent activity, with a live preview of each pane's output. Column widths adapt dynamically to the terminal size.
 
-Columns: **Session:Index** | **Window** | **Age** | **CPU** | **RAM**
+Columns: **Session:Index** | **Window** | **Status** | **Age** | **CPU** | **RAM**
 
 CPU and RAM are computed per pane by summing the entire process tree (shell + agent + child processes), so you can spot runaway agents at a glance.
 
@@ -65,6 +65,8 @@ Example:
 | `Alt+R` | Resume agent (sends `claude --continue`, only works after pause) |
 | `Alt+N` | Launch new agent |
 | `Alt+E` | Edit session description |
+| `Alt+Y` | Approve (send Enter to selected pane) |
+| `Alt+L` | View watchdog log |
 | `Esc` | Close deck |
 
 The preview panel (right side, 60%) shows metadata for the selected pane:
@@ -172,6 +174,25 @@ tmux set-option -p @pilot-desc "migrate auth to Compose"
 ```
 
 Only panes with a description show the DESC line — others are unaffected.
+
+### Pane Variables
+
+tmux-pilot uses pane-level variables for metadata.
+External tools can set additional variables that
+tmux-pilot will display in the deck.
+
+| Variable | Set by | Read by | Values |
+|----------|--------|---------|--------|
+| `@pilot-agent` | spawn.sh | deck, monitor | claude, gemini, ... |
+| `@pilot-desc` | spawn.sh, agent | deck | Task description |
+| `@pilot-workdir` | agent hook | deck, kill.sh | Current dir |
+| `@pilot-status` | external tool | deck | working, stuck, done |
+| `@pilot-needs-help` | external tool | deck | "" or description |
+
+tmux-pilot reads and displays `@pilot-status` and
+`@pilot-needs-help` but does not set them. External
+tools (watchdog daemons, orchestrators) write these
+variables to communicate agent state.
 
 ## Working directory tracking
 
@@ -318,6 +339,7 @@ Or add to `~/.gemini/settings.json`:
 | `capture_pane` | Capture terminal text from a pane (target, optional line count) |
 | `send_keys` | Send text or control keys to a pane (uses paste-buffer for text to bypass popups) |
 | `monitor_agents` | Monitor all agent panes for permission prompts (risk-classified) and lifecycle events |
+| `run_command_silent` | Run a command silently, return exit code and tail of output (full output saved to log file) |
 
 ## License
 

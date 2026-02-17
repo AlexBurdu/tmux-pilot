@@ -5,10 +5,12 @@
 # ///
 """tmux-pilot MCP server — agent lifecycle tools for MCP-capable clients."""
 
+import json
 import os
 import re
 import subprocess
 import time
+import uuid
 
 from fastmcp import FastMCP
 
@@ -424,6 +426,48 @@ def monitor_agents() -> str:
         ))
 
     return format_report(reports)
+
+
+# ---------------------------------------------------------------------------
+# run_command_silent
+# ---------------------------------------------------------------------------
+@mcp.tool()
+def run_command_silent(
+    command: str,
+    directory: str,
+    timeout_minutes: int = 15,
+) -> str:
+    """Run a command silently, return exit code and tail of output. Full output saved to a log file.
+
+    The command's stdout/stderr go to a temp file, not to the MCP response.
+    Only the exit code and last N lines are returned — keeping LLM context clean.
+
+    Args:
+        command: Shell command to execute.
+        directory: Working directory for the command.
+        timeout_minutes: Max execution time (default 15).
+    """
+    log_file = f"/tmp/pilot-cmd-{uuid.uuid4()}.log"
+    try:
+        with open(log_file, "w") as f:
+            result = subprocess.run(
+                command,
+                shell=True,
+                cwd=directory,
+                stdout=f,
+                stderr=subprocess.STDOUT,
+                timeout=timeout_minutes * 60,
+            )
+        exit_code = result.returncode
+        tail = ""
+        if exit_code != 0:
+            with open(log_file) as f:
+                lines = f.readlines()
+                tail = "".join(lines[-30:])
+        return json.dumps({"exit_code": exit_code, "log_file": log_file, "tail": tail})
+    except subprocess.TimeoutExpired:
+        tail = f"TIMEOUT after {timeout_minutes}m"
+        return json.dumps({"exit_code": -1, "log_file": log_file, "tail": tail})
 
 
 if __name__ == "__main__":

@@ -63,8 +63,9 @@ compute_layout() {
   COL_CPU=4    # "0%", "100%"
   COL_MEM=5    # "1.3G", "429M"
   COL_WIN=8    # window name
-  local gaps=8  # column-t 2-space gaps between 5 columns (4 gaps)
-  local fixed=$(( COL_WIN + COL_AGE + COL_CPU + COL_MEM + gaps ))
+  COL_STATUS=8 # "working", "stuck", "done"
+  local gaps=10  # column-t 2-space gaps between 6 columns (5 gaps)
+  local fixed=$(( COL_WIN + COL_STATUS + COL_AGE + COL_CPU + COL_MEM + gaps ))
 
   # Session column gets whatever space remains after fixed columns
   COL_SES=$(( list_w - fixed ))
@@ -73,12 +74,13 @@ compute_layout() {
 compute_layout
 
 # Column header with bold styling (fzf --ansi processes escape codes)
-COL_HEADER=$(printf '\033[1m%-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s\033[0m' \
+COL_HEADER=$(printf '\033[1m%-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s\033[0m' \
   "$COL_SES" "$COL_SES" "SESSION" "$COL_WIN" "$COL_WIN" "WINDOW" \
+  "$COL_STATUS" "$COL_STATUS" "STATUS" \
   "$COL_AGE" "$COL_AGE" "AGE" "$COL_CPU" "$COL_CPU" "CPU" "$COL_MEM" "$COL_MEM" "MEM")
 
 # Separator line matching column header width
-COL_SEP_W=$(( COL_SES + COL_WIN + COL_AGE + COL_CPU + COL_MEM + 8 ))
+COL_SEP_W=$(( COL_SES + COL_WIN + COL_STATUS + COL_AGE + COL_CPU + COL_MEM + 10 ))
 COL_SEP=$(printf '─%.0s' $(seq 1 "$COL_SEP_W"))
 
 # Align pre-truncated columns (column -t handles emoji/wide chars).
@@ -86,8 +88,8 @@ COL_SEP=$(printf '─%.0s' $(seq 1 "$COL_SEP_W"))
 # even when actual data is shorter.
 format_display() {
   local ruler
-  ruler=$(printf '%*s\t%*s\t%*s\t%*s\t%*s' \
-    "$COL_SES" "" "$COL_WIN" "" \
+  ruler=$(printf '%*s\t%*s\t%*s\t%*s\t%*s\t%*s' \
+    "$COL_SES" "" "$COL_WIN" "" "$COL_STATUS" "" \
     "$COL_AGE" "" "$COL_CPU" "" "$COL_MEM" "" | tr ' ' '_')
   { echo "$ruler"; cat; } | column -t -s$'\t' | tail -n +2
 }
@@ -104,11 +106,11 @@ list_panes() {
   now=$(date +%s)
   ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
   tmux list-panes -a -F \
-    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}${SEP}#{@pilot-host}" |
+    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}${SEP}#{@pilot-host}${SEP}#{@pilot-status}${SEP}#{@pilot-needs-help}" |
   while IFS= read -r _line; do
     # tmux <3.5 escapes 0x1F to literal \037 in format output; decode it
     _line="${_line//\\037/$SEP}"
-    IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid pilot_host <<< "$_line"
+    IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid pilot_host pilot_status pilot_needs_help <<< "$_line"
     [[ -n "$workdir" ]] && path="$workdir"
     local elapsed=$((now - activity))
     local age
@@ -129,12 +131,18 @@ list_panes() {
     [[ $max_ses -lt 2 ]] && max_ses=2
     [[ ${#session} -gt $max_ses ]] && session="${session:0:$((max_ses - 2))}.."
     [[ ${#name} -gt $COL_WIN ]] && name="${name:0:$((COL_WIN - 2))}.."
+    local status=""
+    if [[ -n "$pilot_needs_help" ]]; then
+      status="⚠ ${pilot_needs_help:0:$((COL_STATUS - 2))}"
+    elif [[ -n "$pilot_status" ]]; then
+      status="${pilot_status:0:$COL_STATUS}"
+    fi
     local mem cpu
     mem=$(pane_tree_mem "$pane_pid" <<< "$ps_data")
     cpu=$(pane_tree_cpu "$pane_pid" <<< "$ps_data")
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$activity" "$target" "$path" \
-      "$session:$win_idx" "$name" "$age" "$cpu" "$mem"
+      "$session:$win_idx" "$name" "$status" "$age" "$cpu" "$mem"
   done
 }
 
@@ -203,8 +211,8 @@ while true; do
   result=$(fzf --ansi --no-sort --layout=reverse \
       --delimiter '\t' --with-nth 2 \
       --header "Enter=attach  Ctrl-e/y=scroll  Ctrl-d/u=page  Ctrl-w=wrap
-Alt-d=diff  Alt-s=commit  Alt-x=kill
-Alt-p=pause  Alt-r=resume  Alt-n=new  Alt-e=desc
+Alt-d=diff  Alt-s=commit  Alt-x=kill  Alt-l=log
+Alt-p=pause  Alt-r=resume  Alt-n=new  Alt-e=desc  Alt-y=approve
 $COL_SEP" \
       --header-lines=1 \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
@@ -212,7 +220,7 @@ $COL_SEP" \
       --bind "ctrl-e:preview-down,ctrl-y:preview-up" \
       --bind "ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up" \
       --bind "ctrl-w:change-preview-window(wrap|nowrap)" \
-      --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n,alt-e" \
+      --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n,alt-e,alt-y,alt-l" \
     <<< "0	$COL_HEADER
 $display") || break  # esc / ctrl-c → exit
 
@@ -264,6 +272,18 @@ $display") || break  # esc / ctrl-c → exit
       read -rei "$cur" new_desc
       if [[ -n "$new_desc" ]]; then
         tmux set-option -p -t "$target" @pilot-desc "$new_desc"
+      fi
+      ;;
+    alt-y)
+      target=$(lookup "$idx" target) || continue
+      tmux send-keys -t "$target" Enter
+      ;;
+    alt-l)
+      if [[ -f /tmp/tmux-pilot-watchdog.log ]]; then
+        less +G /tmp/tmux-pilot-watchdog.log
+      else
+        echo "No watchdog log found"
+        sleep 1
       fi
       ;;
     *)

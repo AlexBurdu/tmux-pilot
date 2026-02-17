@@ -44,6 +44,8 @@ pane_start=$(tmux display-message -t "$target" -p '#{pane_start_command}' 2>/dev
 desc=$(tmux display-message -t "$target" -p '#{@pilot-desc}' 2>/dev/null) || desc=""
 pilot_host=$(tmux display-message -t "$target" -p '#{@pilot-host}' 2>/dev/null) || pilot_host=""
 pilot_mode=$(tmux display-message -t "$target" -p '#{@pilot-mode}' 2>/dev/null) || pilot_mode=""
+pilot_status=$(tmux display-message -t "$target" -p '#{@pilot-status}' 2>/dev/null) || pilot_status=""
+pilot_needs_help=$(tmux display-message -t "$target" -p '#{@pilot-needs-help}' 2>/dev/null) || pilot_needs_help=""
 
 now=$(date +%s)
 
@@ -130,6 +132,10 @@ if [[ -n "$pilot_host" ]]; then
 fi
 if [[ -n "$desc" ]]; then
   printf '\033[1mDESC:\033[0m    %s%s\n' "$desc" "$host_suffix"
+elif [[ -n "$pilot_needs_help" ]]; then
+  printf '\033[1;33mSTATUS:\033[0m  ⚠ NEEDS HELP: %s\n' "$pilot_needs_help"
+elif [[ -n "$pilot_status" ]]; then
+  printf '\033[1mSTATUS:\033[0m  %s%s\n' "$pilot_status" "$host_suffix"
 elif [[ -n "$pilot_host" ]]; then
   printf '\033[1mHOST:\033[0m    %s (%s)\n' "$pilot_host" "$pilot_mode"
 else
