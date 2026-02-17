@@ -30,26 +30,26 @@ CPU and RAM are computed per pane by summing the entire process tree (shell + ag
 Example:
 
 ```
-┌─────────────────────────────────────────┬──────────────────────────────────────────────┐
-│ Enter=attach  Ctrl-e/y=scroll           │ PANE:    cld-fix-login:0.0  🔥18:42  active  │
-│ Ctrl-d/u=page  Ctrl-w=wrap              │ TITLE:   * fix-login-flow                    │
-│ Alt-d=diff  Alt-s=commit  Alt-x=kill    │ DESC:    Fix OAuth callback handling #42     │
-│ Alt-p=pause  Alt-r=resume               │ WORKDIR: ~/projects/myapp                    │
-│ Alt-n=new  Alt-e=desc                   │ CMD:     claude  uptime:31m                  │
-│ ──────────────────────────────────────  │ VCS:     git:fix-login (+2 ~1) ↑1            │
-│ SESSION           WINDOW  AGE  CPU  MEM │ ──────────────┤ PREVIEW ├─────────────────── │
-│▌cld-fix-login:0   🔥18:42 act  31%  2.1G│                                              │
-│ gem-refactor-au:0 running  3m   5%  826M│ I'll fix the OAuth callback handling.        │
-│ aider-docs:0      editing  8m   0%  412M│ Let me look at the auth module first...      │
-│ cld-issue-42:0    🖐18:30  15m   0%  1.3G│                                              │
-│ app:0             zsh      2h   0%  106M│ $ git diff src/auth/callback.ts              │
-│                                         │ + if (!state) return redirect('/login')      │
-│                                         │ - if (!state) throw new Error('missing')     │
-│                                         │                                              │
-│                                         │ Fixed. Running tests now...                  │
-│                                         │ $ npm test                                   │
-│                                         │ PASS  src/auth/callback.test.ts (3 tests)    │
-└─────────────────────────────────────────┴──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┬──────────────────────────────────────────────┐
+│ Enter=attach  Ctrl-e/y=scroll                │ PANE:    cld-fix-login:0.0  claude  active   │
+│ Ctrl-d/u=page  Ctrl-w=wrap  Alt-l=log        │ TITLE:   * fix-login-flow                    │
+│ Alt-d=diff  Alt-s=commit  Alt-x=kill         │ DESC:    Fix OAuth callback handling #42     │
+│ Alt-p=pause  Alt-r=resume  Alt-y=approve     │ WORKDIR: ~/projects/myapp                    │
+│ Alt-n=new  Alt-e=desc                        │ CMD:     claude  uptime:31m                  │
+│ ───────────────────────────────────────────  │ VCS:     git:fix-login (+2 ~1) ↑1            │
+│ SESSION           WINDOW  STATUS  AGE  CPU  MEM │ ──────────────┤ PREVIEW ├───────────────── │
+│▌cld-fix-login:0   claude          act  31%  2.1G│                                              │
+│ gem-refactor-au:0 gemini          3m   5%  826M│ I'll fix the OAuth callback handling.        │
+│ aider-docs:0      aider           8m   0%  412M│ Let me look at the auth module first...      │
+│ cld-issue-42:0    claude  ⚠ stuck 15m   0%  1.3G│                                              │
+│ app:0             zsh             2h   0%  106M│ $ git diff src/auth/callback.ts              │
+│                                                 │ + if (!state) return redirect('/login')      │
+│                                                 │ - if (!state) throw new Error('missing')     │
+│                                                 │                                              │
+│                                                 │ Fixed. Running tests now...                  │
+│                                                 │ $ npm test                                   │
+│                                                 │ PASS  src/auth/callback.test.ts (3 tests)    │
+└─────────────────────────────────────────────────┴──────────────────────────────────────────────┘
 ```
 
 | Key | Action |

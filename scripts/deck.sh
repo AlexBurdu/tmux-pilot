@@ -131,7 +131,7 @@ list_panes() {
     [[ $max_ses -lt 2 ]] && max_ses=2
     [[ ${#session} -gt $max_ses ]] && session="${session:0:$((max_ses - 2))}.."
     [[ ${#name} -gt $COL_WIN ]] && name="${name:0:$((COL_WIN - 2))}.."
-    local status=""
+    local status=" "
     if [[ -n "$pilot_needs_help" ]]; then
       status="⚠ ${pilot_needs_help:0:$((COL_STATUS - 2))}"
     elif [[ -n "$pilot_status" ]]; then
