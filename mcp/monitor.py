@@ -298,11 +298,11 @@ def infer_status(
 ) -> str:
     """Infer overall pane status from detections.
 
-    Returns one of: waiting_for_permission, done,
-    working.
+    Returns one of the @pilot-status enum values:
+    working, watching, waiting, paused, done.
     """
     if prompts:
-        return "waiting_for_permission"
+        return "waiting"
     for ev in events:
         if ev.kind == "finished":
             return "done"

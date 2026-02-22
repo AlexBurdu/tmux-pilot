@@ -259,7 +259,7 @@ class TestInferStatus(unittest.TestCase):
         )
         self.assertEqual(
             infer_status([p], []),
-            "waiting_for_permission",
+            "waiting",
         )
 
     def test_finished_event_means_done(self):
@@ -302,7 +302,7 @@ class TestFormatReport(unittest.TestCase):
         )
         r = PaneReport(
             target="s:0.0", agent="claude",
-            status="waiting_for_permission",
+            status="waiting",
             prompts=[p],
         )
         out = format_report([r])

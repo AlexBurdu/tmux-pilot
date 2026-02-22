@@ -19,37 +19,38 @@ Opens a centered popup that walks you through a guided flow with step indicators
 
 Each agent gets its own tmux session. The session name is derived from the prompt — action verb + ticket number or keywords (e.g. `claude-fix-42`, `gemini-refactor-auth`). Names are capped at 17 characters to fit the deck's column layout.
 
-### Agent deck (`prefix+g`)
+### Agent deck (`prefix+e`)
 
 An fzf-based popup listing all panes across all sessions, sorted by most recent activity, with a live preview of each pane's output. Column widths adapt dynamically to the terminal size.
 
-Columns: **Session:Index** | **Window** | **Status** | **Age** | **CPU** | **RAM**
+Columns: **Session:Index** | **Cmd.Pane** | **Status** | **Age** | **CPU** | **RAM**
 
-CPU and RAM are computed per pane by summing the entire process tree (shell + agent + child processes), so you can spot runaway agents at a glance.
+CPU and RAM are computed per pane by summing the entire process tree (shell + agent + child processes), so you can spot runaway agents at a glance. Status icons show at a glance which agents need attention (see [Status enum](#status-enum)).
 
 Example:
 
 ```
 ┌──────────────────────────────────────────────┬──────────────────────────────────────────────┐
-│ Enter=attach  Ctrl-e/y=scroll                │ PANE:    cld-fix-login:0.0  claude  active   │
+│ Enter=attach  Ctrl-e/y=scroll                │ PANE:    cld-fix-login:0.0  active           │
 │ Ctrl-d/u=page  Ctrl-w=wrap  Alt-l=log        │ TITLE:   * fix-login-flow                    │
-│ Alt-d=diff  Alt-s=commit  Alt-x=kill         │ DESC:    Fix OAuth callback handling #42     │
-│ Alt-p=pause  Alt-r=resume  Alt-y=approve     │ WORKDIR: ~/projects/myapp                    │
-│ Alt-n=new  Alt-e=desc                        │ CMD:     claude  uptime:31m                  │
-│ ───────────────────────────────────────────  │ VCS:     git:fix-login (+2 ~1) ↑1            │
-│ SESSION           WINDOW  STATUS  AGE  CPU  MEM │ ──────────────┤ PREVIEW ├───────────────── │
-│▌cld-fix-login:0   claude          act  31%  2.1G│                                              │
-│ gem-refactor-au:0 gemini          3m   5%  826M│ I'll fix the OAuth callback handling.        │
-│ aider-docs:0      aider           8m   0%  412M│ Let me look at the auth module first...      │
-│ cld-issue-42:0    claude  ⚠ stuck 15m   0%  1.3G│                                              │
-│ app:0             zsh             2h   0%  106M│ $ git diff src/auth/callback.ts              │
-│                                                 │ + if (!state) return redirect('/login')      │
-│                                                 │ - if (!state) throw new Error('missing')     │
-│                                                 │                                              │
-│                                                 │ Fixed. Running tests now...                  │
-│                                                 │ $ npm test                                   │
-│                                                 │ PASS  src/auth/callback.test.ts (3 tests)    │
-└─────────────────────────────────────────────────┴──────────────────────────────────────────────┘
+│ Alt-d=diff  Alt-s=commit  Alt-x=kill         │ WINDOW:  claude                              │
+│ Alt-p=pause  Alt-r=resume  Alt-y=approve     │ DESC:    Fix OAuth callback handling #42     │
+│ Alt-n=new  Alt-e=desc  Alt-y=approve         │ STATUS:  ▶️ working                           │
+│                                              │ WORKDIR: ~/projects/myapp                    │
+│ ─────────────────────────────────────────    │ CMD:     claude  uptime:31m                  │
+│ SESSION           CMD      STAT AGE  CPU MEM │ VCS:     git:fix-login (+2 ~1) ↑1            │
+│▌cld-fix-login:0   claude.0 ▶️   act  31% 2.1G│ ──────────────┤ PREVIEW ├───────────────────  │
+│ gem-refactor-au:0 gemini.0 ▶️   3m   5%  826M│ I'll fix the OAuth callback handling.        │
+│ aider-docs:0      aider.0  ✅   8m   0%  412M│ Let me look at the auth module first...      │
+│ cld-issue-42:0    claude.0 ✋   15m  0%  1.3G│                                              │
+│ app:0             zsh.0         2h   0%  106M│ $ git diff src/auth/callback.ts              │
+│                                              │ + if (!state) return redirect('/login')       │
+│                                              │ - if (!state) throw new Error('missing')      │
+│                                              │                                              │
+│                                              │ Fixed. Running tests now...                  │
+│                                              │ $ npm test                                   │
+│                                              │ PASS  src/auth/callback.test.ts (3 tests)    │
+└──────────────────────────────────────────────┴──────────────────────────────────────────────┘
 ```
 
 | Key | Action |
@@ -151,7 +152,7 @@ All options are set via tmux options in your `tmux.conf`. Defaults are shown bel
 ```tmux
 # Keybindings
 set -g @pilot-key-new "a"
-set -g @pilot-key-deck "g"
+set -g @pilot-key-deck "e"
 set -g @pilot-key-vcs "d"
 
 # Popup sizes
@@ -161,6 +162,10 @@ set -g @pilot-popup-deck-width "95%"
 set -g @pilot-popup-deck-height "90%"
 set -g @pilot-popup-vcs-width "95%"
 set -g @pilot-popup-vcs-height "90%"
+
+# Status icons: use BMP symbols instead of emojis
+# (for terminals with poor emoji rendering)
+set -g @pilot-status-ascii "1"
 ```
 
 ## Session descriptions
@@ -186,13 +191,34 @@ tmux-pilot will display in the deck.
 | `@pilot-agent` | spawn.sh | deck, monitor | claude, gemini, ... |
 | `@pilot-desc` | spawn.sh, agent | deck | Task description |
 | `@pilot-workdir` | agent hook | deck, kill.sh | Current dir |
-| `@pilot-status` | external tool | deck | working, stuck, done |
+| `@pilot-status` | external tool, deck | deck | Status enum (see below) |
 | `@pilot-needs-help` | external tool | deck | "" or description |
 
-tmux-pilot reads and displays `@pilot-status` and
-`@pilot-needs-help` but does not set them. External
-tools (watchdog daemons, orchestrators) write these
-variables to communicate agent state.
+### Status enum
+
+`@pilot-status` accepts a fixed set of values. The deck renders each as an emoji icon in the list and shows the raw value in the preview panel.
+
+| Value | Emoji | ASCII | Meaning |
+|-------|-------|-------|---------|
+| `working` | ▶️ | `●` green | Agent is actively running |
+| `watching` | 👀 | `◉` blue | Watchdog is monitoring this pane |
+| `waiting` | ✋ | `⚠` yellow | Needs human attention |
+| `paused` | ⏸️ | `‖` gray | Intentionally suspended (via pause) |
+| `done` | ✅ | `✔` green | Task completed |
+| *(empty)* | | | No status — non-agent pane or untracked |
+
+Unknown values are rendered as a blank space. Set `@pilot-status-ascii "1"` in your `tmux.conf` to use BMP symbols with ANSI colors instead of emojis.
+
+External tools (watchdog daemons, orchestrators) write `@pilot-status` to communicate agent state. The deck also sets it automatically on pause (`paused`) and resume (`working`).
+
+When `@pilot-needs-help` is set, the deck displays the `waiting` icon regardless of `@pilot-status`, and the preview shows the help description.
+
+```bash
+# Examples
+tmux set-option -p @pilot-status "working"
+tmux set-option -p @pilot-status "waiting"
+tmux set-option -p @pilot-needs-help "high-risk: rm -rf /"
+```
 
 ## Working directory tracking
 

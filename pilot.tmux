@@ -13,7 +13,7 @@ get_opt() {
 }
 
 key_new=$(get_opt "@pilot-key-new-agent" "a")
-key_deck=$(get_opt "@pilot-key-deck" "g")
+key_deck=$(get_opt "@pilot-key-deck" "e")
 key_vcs=$(get_opt "@pilot-key-vcs-status" "d")
 
 popup_new_w=$(get_opt "@pilot-popup-new-agent-width" "40%")
@@ -29,10 +29,8 @@ tmux bind-key "$key_new" display-popup \
   -d '#{pane_current_path}' -E \
   "$CURRENT_DIR/scripts/new-agent.sh"
 
-tmux bind-key "$key_deck" display-popup \
-  -w "$popup_deck_w" -h "$popup_deck_h" \
-  -y '#{e|+|:#{popup_centre_y},1}' -E \
-  "$CURRENT_DIR/scripts/deck.sh"
+tmux bind-key "$key_deck" run-shell \
+  "tmux set-environment -g PILOT_DECK_ORIGIN '#{session_name}:#{window_index}.#{pane_index}'; tmux display-popup -w '$popup_deck_w' -h '$popup_deck_h' -y '##{e|+|:##{popup_centre_y},1}' -E '$CURRENT_DIR/scripts/deck.sh'"
 
 tmux bind-key "$key_vcs" display-popup \
   -w "$popup_vcs_w" -h "$popup_vcs_h" \

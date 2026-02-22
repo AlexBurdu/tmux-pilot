@@ -37,11 +37,13 @@ agent_pause() {
     goose)       tmux send-keys -t "$target" C-d ;;
     *)           tmux send-keys -t "$target" C-c ;;
   esac
+  tmux set-option -p -t "$target" @pilot-status "paused" 2>/dev/null || true
 }
 
 # Send the appropriate resume/restart command to a pane.
 agent_resume() {
   local target="$1" agent="$2"
+  tmux set-option -p -t "$target" @pilot-status "working" 2>/dev/null || true
   case "$agent" in
     claude)      _send_text "$target" 'claude --continue' ;;
     gemini)      _send_text "$target" "bash -lc 'gemini -y'" ;;

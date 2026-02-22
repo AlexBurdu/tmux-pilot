@@ -13,6 +13,34 @@ source "$CURRENT_DIR/_agents.sh"
 # Unit separator — safe delimiter
 SEP=$'\x1f'
 
+# Status enum → emoji mapping.
+# External tools write semantic values to @pilot-status;
+# the deck renders them as icons.
+# Set @pilot-status-ascii "1" in tmux.conf for BMP fallback.
+USE_ASCII=$(tmux show-option -gqv @pilot-status-ascii 2>/dev/null)
+status_icon() {
+  local raw="$1"
+  if [[ "$USE_ASCII" == "1" ]]; then
+    case "$raw" in
+      working)  printf '\033[32m●\033[0m' ;;  # green
+      watching) printf '\033[34m◉\033[0m' ;;  # blue
+      waiting)  printf '\033[33m⚠\033[0m' ;;  # yellow
+      paused)   printf '\033[90m‖\033[0m' ;;  # gray
+      done)     printf '\033[32m✔\033[0m' ;;  # green
+      *)        printf ' ' ;;
+    esac
+  else
+    case "$raw" in
+      working)  printf '▶️' ;;
+      watching) printf '👀' ;;
+      waiting)  printf '✋' ;;
+      paused)   printf '⏸️' ;;
+      done)     printf '✅' ;;
+      *)        printf ' ' ;;
+    esac
+  fi
+}
+
 # Get human-readable RSS of a process tree.
 # Reads ps output from stdin, takes root PID as $1.
 pane_tree_mem() {
@@ -42,7 +70,7 @@ pane_tree_cpu() {
 }
 
 # Compute column widths from terminal size.
-# Sets globals: COL_SES COL_WIN COL_AGE COL_CPU COL_MEM
+# Sets globals: COL_SES COL_PANE COL_STATUS COL_AGE COL_CPU COL_MEM
 compute_layout() {
   local total_cols popup_w client_w pct
   # Query tmux directly (tput unreliable during popup PTY init)
@@ -62,10 +90,10 @@ compute_layout() {
   COL_AGE=7    # "active", "5m ago", "12h ago"
   COL_CPU=4    # "0%", "100%"
   COL_MEM=5    # "1.3G", "429M"
-  COL_WIN=8    # window name
-  COL_STATUS=8 # "working", "stuck", "done"
+  COL_PANE=14  # window_name:win_idx.pane_idx
+  COL_STATUS=4 # status emoji
   local gaps=10  # column-t 2-space gaps between 6 columns (5 gaps)
-  local fixed=$(( COL_WIN + COL_STATUS + COL_AGE + COL_CPU + COL_MEM + gaps ))
+  local fixed=$(( COL_PANE + COL_STATUS + COL_AGE + COL_CPU + COL_MEM + gaps ))
 
   # Session column gets whatever space remains after fixed columns
   COL_SES=$(( list_w - fixed ))
@@ -75,12 +103,12 @@ compute_layout
 
 # Column header with bold styling (fzf --ansi processes escape codes)
 COL_HEADER=$(printf '\033[1m%-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s\033[0m' \
-  "$COL_SES" "$COL_SES" "SESSION" "$COL_WIN" "$COL_WIN" "WINDOW" \
-  "$COL_STATUS" "$COL_STATUS" "STATUS" \
+  "$COL_SES" "$COL_SES" "SESSION" "$COL_PANE" "$COL_PANE" "PANE" \
+  "$COL_STATUS" "$COL_STATUS" "STAT" \
   "$COL_AGE" "$COL_AGE" "AGE" "$COL_CPU" "$COL_CPU" "CPU" "$COL_MEM" "$COL_MEM" "MEM")
 
 # Separator line matching column header width
-COL_SEP_W=$(( COL_SES + COL_WIN + COL_STATUS + COL_AGE + COL_CPU + COL_MEM + 10 ))
+COL_SEP_W=$(( COL_SES + COL_PANE + COL_STATUS + COL_AGE + COL_CPU + COL_MEM + 10 ))
 COL_SEP=$(printf '─%.0s' $(seq 1 "$COL_SEP_W"))
 
 # Align pre-truncated columns (column -t handles emoji/wide chars).
@@ -89,7 +117,7 @@ COL_SEP=$(printf '─%.0s' $(seq 1 "$COL_SEP_W"))
 format_display() {
   local ruler
   ruler=$(printf '%*s\t%*s\t%*s\t%*s\t%*s\t%*s' \
-    "$COL_SES" "" "$COL_WIN" "" "$COL_STATUS" "" \
+    "$COL_SES" "" "$COL_PANE" "" "$COL_STATUS" "" \
     "$COL_AGE" "" "$COL_CPU" "" "$COL_MEM" "" | tr ' ' '_')
   { echo "$ruler"; cat; } | column -t -s$'\t' | tail -n +2
 }
@@ -106,11 +134,11 @@ list_panes() {
   now=$(date +%s)
   ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
   tmux list-panes -a -F \
-    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}${SEP}#{@pilot-host}${SEP}#{@pilot-status}${SEP}#{@pilot-needs-help}" |
+    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_current_command}${SEP}#{pane_index}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}${SEP}#{@pilot-host}${SEP}#{@pilot-status}${SEP}#{@pilot-needs-help}" |
   while IFS= read -r _line; do
     # tmux <3.5 escapes 0x1F to literal \037 in format output; decode it
     _line="${_line//\\037/$SEP}"
-    IFS="$SEP" read -r target session win_idx name title path workdir activity pane_pid pilot_host pilot_status pilot_needs_help <<< "$_line"
+    IFS="$SEP" read -r target session win_idx win_name pane_cmd pane_idx title path workdir activity pane_pid pilot_host pilot_status pilot_needs_help <<< "$_line"
     [[ -n "$workdir" ]] && path="$workdir"
     local elapsed=$((now - activity))
     local age
@@ -127,22 +155,23 @@ list_panes() {
     if [[ -n "$pilot_host" ]]; then
       session="${session}@${pilot_host}"
     fi
-    local max_ses=$((COL_SES - ${#win_idx} - 1))
-    [[ $max_ses -lt 2 ]] && max_ses=2
-    [[ ${#session} -gt $max_ses ]] && session="${session:0:$((max_ses - 2))}.."
-    [[ ${#name} -gt $COL_WIN ]] && name="${name:0:$((COL_WIN - 2))}.."
-    local status=" "
+    [[ ${#session} -gt $COL_SES ]] && session="${session:0:$((COL_SES - 2))}.."
+    local pane_col="${win_name}:${win_idx}.${pane_idx}"
+    [[ ${#pane_col} -gt $COL_PANE ]] && pane_col="${pane_col:0:$((COL_PANE - 2))}.."
+    local status
     if [[ -n "$pilot_needs_help" ]]; then
-      status="⚠ ${pilot_needs_help:0:$((COL_STATUS - 2))}"
+      status=$(status_icon "waiting")
     elif [[ -n "$pilot_status" ]]; then
-      status="${pilot_status:0:$COL_STATUS}"
+      status=$(status_icon "$pilot_status")
+    else
+      status=" "
     fi
     local mem cpu
     mem=$(pane_tree_mem "$pane_pid" <<< "$ps_data")
     cpu=$(pane_tree_cpu "$pane_pid" <<< "$ps_data")
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$activity" "$target" "$path" \
-      "$session:$win_idx" "$name" "$status" "$age" "$cpu" "$mem"
+      "$session" "$pane_col" "$status" "$age" "$cpu" "$mem"
   done
 }
 
@@ -187,6 +216,9 @@ if [[ "${1:-}" == "--list" ]]; then
   exit 0
 fi
 
+# Current pane target (set by pilot.tmux via set-environment before popup opens)
+CURRENT_TARGET=$(tmux show-environment -g PILOT_DECK_ORIGIN 2>/dev/null | sed 's/^[^=]*=//')
+
 # Lookup target and path from data file by index
 lookup() {
   local idx="$1" field="$2"
@@ -201,6 +233,20 @@ lookup() {
   esac
 }
 
+# Find the 1-based position of $CURRENT_TARGET in the data file.
+# Returns "" if not found (fzf defaults to first item).
+find_current_pos() {
+  [[ -z "$CURRENT_TARGET" ]] && return
+  local idx=1
+  while IFS=$'\t' read -r target _; do
+    if [[ "$target" == "$CURRENT_TARGET" ]]; then
+      echo "$idx"
+      return
+    fi
+    idx=$((idx + 1))
+  done < "$PILOT_DATA"
+}
+
 # Build initial data
 display=$(build_data)
 
@@ -208,6 +254,13 @@ display=$(build_data)
 # selection, perform the action, then re-launch fzf
 # (except for enter/esc which break out).
 while true; do
+  # Position cursor on the current pane (requires fzf 0.53+)
+  start_pos=$(find_current_pos)
+  fzf_start_bind=()
+  if [[ -n "$start_pos" ]]; then
+    fzf_start_bind=(--bind "load:pos($start_pos)+refresh-preview")
+  fi
+
   result=$(fzf --ansi --no-sort --layout=reverse \
       --delimiter '\t' --with-nth 2 \
       --header "Enter=attach  Ctrl-e/y=scroll  Ctrl-d/u=page  Ctrl-w=wrap
@@ -216,11 +269,12 @@ Alt-p=pause  Alt-r=resume  Alt-n=new  Alt-e=desc  Alt-y=approve
 $COL_SEP" \
       --header-lines=1 \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
-      --preview-window=right:60%:follow:~7 \
+      --preview-window=right:60%:follow:~9 \
       --bind "ctrl-e:preview-down,ctrl-y:preview-up" \
       --bind "ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up" \
       --bind "ctrl-w:change-preview-window(wrap|nowrap)" \
       --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n,alt-e,alt-y,alt-l" \
+      "${fzf_start_bind[@]}" \
     <<< "0	$COL_HEADER
 $display") || break  # esc / ctrl-c → exit
 

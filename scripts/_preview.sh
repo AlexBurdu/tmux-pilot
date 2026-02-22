@@ -123,21 +123,35 @@ if [[ -n "$path" && -d "$path" ]]; then
   fi
 fi
 
-# Preview header — always exactly 7 lines (padded) to match ~7 in deck.sh
-printf '\033[1mPANE:\033[0m    %s  %s  %s\n' "$target" "$window" "$age"
+# Preview header — always exactly 9 lines (padded) to match ~9 in deck.sh
+printf '\033[1mPANE:\033[0m    %s  %s\n' "$target" "$age"
 printf '\033[1mTITLE:\033[0m   %s\n' "$title"
+printf '\033[1mWINDOW:\033[0m  %s\n' "$window"
 host_suffix=""
 if [[ -n "$pilot_host" ]]; then
   host_suffix="  [$pilot_host via $pilot_mode]"
 fi
 if [[ -n "$desc" ]]; then
   printf '\033[1mDESC:\033[0m    %s%s\n' "$desc" "$host_suffix"
-elif [[ -n "$pilot_needs_help" ]]; then
-  printf '\033[1;33mSTATUS:\033[0m  ⚠ NEEDS HELP: %s\n' "$pilot_needs_help"
-elif [[ -n "$pilot_status" ]]; then
-  printf '\033[1mSTATUS:\033[0m  %s%s\n' "$pilot_status" "$host_suffix"
 elif [[ -n "$pilot_host" ]]; then
   printf '\033[1mHOST:\033[0m    %s (%s)\n' "$pilot_host" "$pilot_mode"
+else
+  printf '\n'
+fi
+# Status line: show emoji icon + raw value + needs-help detail
+if [[ -n "$pilot_needs_help" ]]; then
+  printf '\033[1;33mSTATUS:\033[0m  ✋ waiting — %s\n' "$pilot_needs_help"
+elif [[ -n "$pilot_status" ]]; then
+  USE_ASCII=$(tmux show-option -gqv @pilot-status-ascii 2>/dev/null)
+  case "$pilot_status" in
+    working)  [[ "$USE_ASCII" == "1" ]] && icon='\033[32m●\033[0m' || icon='▶️' ;;
+    watching) [[ "$USE_ASCII" == "1" ]] && icon='\033[34m◉\033[0m' || icon='👀' ;;
+    waiting)  [[ "$USE_ASCII" == "1" ]] && icon='\033[33m⚠\033[0m' || icon='✋' ;;
+    paused)   [[ "$USE_ASCII" == "1" ]] && icon='\033[90m‖\033[0m' || icon='⏸️' ;;
+    done)     [[ "$USE_ASCII" == "1" ]] && icon='\033[32m✔\033[0m' || icon='✅' ;;
+    *)        icon='?' ;;
+  esac
+  printf '\033[1mSTATUS:\033[0m  %b %s%s\n' "$icon" "$pilot_status" "$host_suffix"
 else
   printf '\n'
 fi
