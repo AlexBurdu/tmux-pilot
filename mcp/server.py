@@ -77,6 +77,17 @@ def spawn_agent(
               visible in deck) or "remote-tmux" (fully remote tmux session).
               Defaults to "local-ssh".
     """
+    # Auto-detect owner: resolve caller's tmux pane to session name
+    owner = ""
+    pane_id = os.environ.get("TMUX_PANE", "")
+    if pane_id:
+        owner_result = _run([
+            "tmux", "display-message", "-t", pane_id,
+            "-p", "#{session_name}",
+        ])
+        if owner_result.returncode == 0:
+            owner = owner_result.stdout.strip()
+
     cmd = [
         os.path.join(SCRIPTS_DIR, "spawn.sh"),
         "--agent", agent,
@@ -89,6 +100,8 @@ def spawn_agent(
         cmd += ["--host", host]
     if mode:
         cmd += ["--mode", mode]
+    if owner:
+        cmd += ["--owner", owner]
 
     result = _run(cmd)
     if result.returncode != 0:
@@ -426,6 +439,51 @@ def monitor_agents() -> str:
         ))
 
     return format_report(reports)
+
+
+# ---------------------------------------------------------------------------
+# transfer_ownership
+# ---------------------------------------------------------------------------
+@mcp.tool()
+def transfer_ownership(old_owner: str, new_owner: str) -> str:
+    """Update @pilot-owner on all panes matching an old owner.
+
+    Used during orchestrator handoff to re-route escalations to a new
+    orchestrator session.
+
+    Args:
+        old_owner: Current owner session name to match.
+        new_owner: New owner session name to set.
+    """
+    if not old_owner:
+        return "Error: old_owner must not be empty"
+    if not new_owner:
+        return "Error: new_owner must not be empty"
+
+    sep = "\x1f"
+    fmt = f"#{{session_name}}:#{{window_index}}.#{{pane_index}}{sep}#{{@pilot-owner}}"
+    result = _run(["tmux", "list-panes", "-a", "-F", fmt])
+    if result.returncode != 0:
+        return f"Error: {result.stderr.strip()}"
+
+    updated: list[str] = []
+    for raw_line in result.stdout.strip().splitlines():
+        raw_line = raw_line.replace("\\037", sep)
+        parts = raw_line.split(sep)
+        if len(parts) < 2:
+            continue
+        target, owner = parts[0], parts[1]
+        if owner == old_owner:
+            set_result = _run([
+                "tmux", "set-option", "-p", "-t", target,
+                "@pilot-owner", new_owner,
+            ])
+            if set_result.returncode == 0:
+                updated.append(target)
+
+    if not updated:
+        return f"No panes found with @pilot-owner={old_owner!r}"
+    return f"Updated {len(updated)} pane(s): {', '.join(updated)}"
 
 
 # ---------------------------------------------------------------------------
