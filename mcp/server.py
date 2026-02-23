@@ -77,18 +77,11 @@ def spawn_agent(
               visible in deck) or "remote-tmux" (fully remote tmux session).
               Defaults to "local-ssh".
     """
-    # Auto-detect owner: resolve caller's tmux pane
-    # to full target (session:window.pane) so
-    # escalations reach the exact pane.
-    owner = ""
-    pane_id = os.environ.get("TMUX_PANE", "")
-    if pane_id:
-        owner_result = _run([
-            "tmux", "display-message", "-t", pane_id,
-            "-p", "#{session_name}:#{window_index}.#{pane_index}",
-        ])
-        if owner_result.returncode == 0:
-            owner = owner_result.stdout.strip()
+    # Auto-detect owner: use the caller's unique
+    # tmux pane ID (%N). Unlike session:window.pane,
+    # pane IDs are globally unique and stable for the
+    # lifetime of the pane — immune to swaps/moves.
+    owner = os.environ.get("TMUX_PANE", "")
 
     cmd = [
         os.path.join(SCRIPTS_DIR, "spawn.sh"),
