@@ -192,6 +192,7 @@ tmux-pilot will display in the deck.
 | `@pilot-desc` | spawn.sh, agent | deck | Task description |
 | `@pilot-workdir` | agent hook | deck, kill.sh | Current dir |
 | `@pilot-status` | external tool, deck | deck | Status enum (see below) |
+| `@pilot-owner` | spawn.sh (MCP) | deck, transfer_ownership | Orchestrator session name that spawned this agent |
 | `@pilot-needs-help` | external tool | deck | "" or description |
 
 ### Status enum
@@ -358,13 +359,14 @@ Or add to `~/.gemini/settings.json`:
 | Tool | Description |
 |------|-------------|
 | `spawn_agent` | Create a new agent tmux session (agent, prompt, directory, optional session name) |
-| `list_agents` | List all running panes with agent, description, directory, age, CPU, memory |
+| `list_agents` | List all running panes with agent, owner, description, directory, age, CPU, memory |
 | `pause_agent` | Gracefully pause a running agent (keeps pane alive for resume) |
 | `resume_agent` | Resume a previously paused agent |
 | `kill_agent` | Kill an agent session and clean up its worktree |
 | `capture_pane` | Capture terminal text from a pane (target, optional line count) |
 | `send_keys` | Send text or control keys to a pane (uses paste-buffer for text to bypass popups) |
 | `monitor_agents` | Monitor all agent panes for permission prompts (risk-classified) and lifecycle events |
+| `transfer_ownership` | Update @pilot-owner on all panes matching an old owner value (orchestrator handoff) |
 | `run_command_silent` | Run a command silently, return exit code and tail of output (full output saved to log file) |
 
 ## License
