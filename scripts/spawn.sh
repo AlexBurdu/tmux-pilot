@@ -5,6 +5,7 @@
 # Usage:
 #   spawn.sh --agent <name> --prompt <text> --dir <path> [--session <name>]
 #            [--host <hostname>] [--mode local-ssh|remote-tmux]
+#            [--owner <session-name>]
 #
 # Outputs the session name to stdout on success.
 set -euo pipefail
@@ -13,7 +14,7 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$CURRENT_DIR/_agents.sh"
 source "$CURRENT_DIR/_hosts.sh"
 
-agent="" prompt="" dir="" session_override="" host="" mode=""
+agent="" prompt="" dir="" session_override="" host="" mode="" owner=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --agent)   agent="$2"; shift 2 ;;
@@ -22,6 +23,7 @@ while [[ $# -gt 0 ]]; do
     --session) session_override="$2"; shift 2 ;;
     --host)    host="$2"; shift 2 ;;
     --mode)    mode="$2"; shift 2 ;;
+    --owner)   owner="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -130,10 +132,14 @@ desc="${prompt:0:80}"
 
 if [[ "$mode" == "remote-tmux" ]]; then
   # Fully remote: create a tmux session on the remote host via SSH
+  owner_cmd=""
+  if [[ -n "$owner" ]]; then
+    owner_cmd=" && tmux set-option -p -t '$session_name' @pilot-owner '$owner'"
+  fi
   ssh -o ConnectTimeout=10 "$host" \
     "tmux new-session -d -s '$session_name' -c '$dir' '$path_prefix $tmux_cmd' && \
      tmux set-option -p -t '$session_name' @pilot-desc '$desc' && \
-     tmux set-option -p -t '$session_name' @pilot-agent '$agent'"
+     tmux set-option -p -t '$session_name' @pilot-agent '$agent'$owner_cmd"
   cache_host "$host"
   printf '%s' "$session_name"
 elif [[ "$mode" == "local-ssh" ]]; then
@@ -144,6 +150,7 @@ elif [[ "$mode" == "local-ssh" ]]; then
   tmux set-option -p -t "$session_name" @pilot-agent "$agent"
   tmux set-option -p -t "$session_name" @pilot-host "$host"
   tmux set-option -p -t "$session_name" @pilot-mode "$mode"
+  [[ -n "$owner" ]] && tmux set-option -p -t "$session_name" @pilot-owner "$owner"
   cache_host "$host"
   printf '%s' "$session_name"
 else
@@ -153,5 +160,6 @@ else
     "$path_prefix $tmux_cmd"
   tmux set-option -p -t "$session_name" @pilot-desc "$desc"
   tmux set-option -p -t "$session_name" @pilot-agent "$agent"
+  [[ -n "$owner" ]] && tmux set-option -p -t "$session_name" @pilot-owner "$owner"
   printf '%s' "$session_name"
 fi

@@ -269,7 +269,7 @@ Alt-p=pause  Alt-r=resume  Alt-n=new  Alt-e=desc  Alt-y=approve
 $COL_SEP" \
       --header-lines=1 \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
-      --preview-window=right:60%:follow:~9 \
+      --preview-window=right:60%:follow:~10 \
       --bind "ctrl-e:preview-down,ctrl-y:preview-up" \
       --bind "ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up" \
       --bind "ctrl-w:change-preview-window(wrap|nowrap)" \
