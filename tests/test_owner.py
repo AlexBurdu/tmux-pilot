@@ -44,8 +44,8 @@ class TestSpawnAgentOwner(unittest.TestCase):
     @patch("server._run")
     def test_owner_passed_when_tmux_pane_set(self, mock_run):
         """When $TMUX_PANE is set, spawn_agent resolves session name and passes --owner."""
-        # First call: resolve TMUX_PANE to session name
-        owner_result = MagicMock(returncode=0, stdout="orch-main\n")
+        # First call: resolve TMUX_PANE to full target
+        owner_result = MagicMock(returncode=0, stdout="orch-main:0.1\n")
         # Second call: spawn.sh
         spawn_result = MagicMock(returncode=0, stdout="claude-fix-42", stderr="")
         mock_run.side_effect = [owner_result, spawn_result]
@@ -60,7 +60,7 @@ class TestSpawnAgentOwner(unittest.TestCase):
         owner_call = mock_run.call_args_list[0]
         self.assertEqual(
             owner_call[0][0],
-            ["tmux", "display-message", "-t", "%5", "-p", "#{session_name}"],
+            ["tmux", "display-message", "-t", "%5", "-p", "#{session_name}:#{window_index}.#{pane_index}"],
         )
 
         # Verify --owner passed to spawn.sh
@@ -68,7 +68,7 @@ class TestSpawnAgentOwner(unittest.TestCase):
         spawn_cmd = spawn_call[0][0]
         self.assertIn("--owner", spawn_cmd)
         owner_idx = spawn_cmd.index("--owner")
-        self.assertEqual(spawn_cmd[owner_idx + 1], "orch-main")
+        self.assertEqual(spawn_cmd[owner_idx + 1], "orch-main:0.1")
 
     @patch.dict(os.environ, {}, clear=True)
     @patch("server._run")
