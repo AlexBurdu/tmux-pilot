@@ -100,6 +100,66 @@ class TestSpawnAgentOwner(unittest.TestCase):
         spawn_cmd = mock_run.call_args[0][0]
         self.assertNotIn("--owner", spawn_cmd)
 
+    @patch.dict(os.environ, {}, clear=True)
+    @patch("server._run")
+    def test_explicit_owner_overrides_env(
+        self, mock_run
+    ):
+        """Explicit owner parameter is used even
+        when $TMUX_PANE is not set (remote MCP)."""
+        os.environ.pop("TMUX_PANE", None)
+
+        spawn_result = MagicMock(
+            returncode=0,
+            stdout="gemini-fix-99",
+            stderr="",
+        )
+        mock_run.return_value = spawn_result
+
+        result = server.spawn_agent(
+            agent="gemini",
+            prompt="Fix bug #99",
+            directory="/tmp",
+            owner="%299",
+        )
+
+        self.assertIn("gemini-fix-99", result)
+        spawn_cmd = mock_run.call_args[0][0]
+        self.assertIn("--owner", spawn_cmd)
+        idx = spawn_cmd.index("--owner")
+        self.assertEqual(
+            spawn_cmd[idx + 1], "%299"
+        )
+
+    @patch.dict(os.environ, {"TMUX_PANE": "%5"})
+    @patch("server._run")
+    def test_explicit_owner_overrides_tmux_pane(
+        self, mock_run
+    ):
+        """Explicit owner takes priority over
+        $TMUX_PANE when both are present."""
+        spawn_result = MagicMock(
+            returncode=0,
+            stdout="gemini-fix-99",
+            stderr="",
+        )
+        mock_run.return_value = spawn_result
+
+        result = server.spawn_agent(
+            agent="gemini",
+            prompt="Fix bug #99",
+            directory="/tmp",
+            owner="%299",
+        )
+
+        self.assertIn("gemini-fix-99", result)
+        spawn_cmd = mock_run.call_args[0][0]
+        idx = spawn_cmd.index("--owner")
+        # Explicit owner wins over $TMUX_PANE
+        self.assertEqual(
+            spawn_cmd[idx + 1], "%299"
+        )
+
 
 # -----------------------------------------------------------
 # transfer_ownership

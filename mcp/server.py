@@ -64,6 +64,7 @@ def spawn_agent(
     session_name: str | None = None,
     host: str | None = None,
     mode: str | None = None,
+    owner: str | None = None,
 ) -> str:
     """Create a new AI agent in its own tmux session.
 
@@ -76,12 +77,16 @@ def spawn_agent(
         mode: Execution mode when host is set: "local-ssh" (local pane over SSH,
               visible in deck) or "remote-tmux" (fully remote tmux session).
               Defaults to "local-ssh".
+        owner: Optional owner pane ID (e.g. "%5"). Overrides $TMUX_PANE
+               auto-detection. Use when the MCP server runs outside tmux
+               (e.g. remote MCP) and the caller knows its own pane ID.
     """
-    # Auto-detect owner: use the caller's unique
-    # tmux pane ID (%N). Unlike session:window.pane,
-    # pane IDs are globally unique and stable for the
-    # lifetime of the pane — immune to swaps/moves.
-    owner = os.environ.get("TMUX_PANE", "")
+    # Explicit owner overrides auto-detection.
+    # Fall back to $TMUX_PANE (works when the MCP
+    # server runs inside tmux on the same machine).
+    effective_owner = (
+        owner or os.environ.get("TMUX_PANE", "")
+    )
 
     cmd = [
         os.path.join(SCRIPTS_DIR, "spawn.sh"),
@@ -95,8 +100,8 @@ def spawn_agent(
         cmd += ["--host", host]
     if mode:
         cmd += ["--mode", mode]
-    if owner:
-        cmd += ["--owner", owner]
+    if effective_owner:
+        cmd += ["--owner", effective_owner]
 
     result = _run(cmd)
     if result.returncode != 0:
