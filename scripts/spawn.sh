@@ -5,7 +5,8 @@
 # Usage:
 #   spawn.sh --agent <name> --prompt <text> --dir <path> [--session <name>]
 #            [--host <hostname>] [--mode local-ssh|remote-tmux]
-#            [--owner <session-name>]
+#            [--owner <session-name>] [--tier <string>]
+#            [--trust <string>]
 #
 # Outputs the session name to stdout on success.
 set -euo pipefail
@@ -15,6 +16,7 @@ source "$CURRENT_DIR/_agents.sh"
 source "$CURRENT_DIR/_hosts.sh"
 
 agent="" prompt="" dir="" session_override="" host="" mode="" owner=""
+tier="" trust=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --agent)   agent="$2"; shift 2 ;;
@@ -24,6 +26,8 @@ while [[ $# -gt 0 ]]; do
     --host)    host="$2"; shift 2 ;;
     --mode)    mode="$2"; shift 2 ;;
     --owner)   owner="$2"; shift 2 ;;
+    --tier)    tier="$2"; shift 2 ;;
+    --trust)   trust="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -136,10 +140,18 @@ if [[ "$mode" == "remote-tmux" ]]; then
   if [[ -n "$owner" ]]; then
     owner_cmd=" && tmux set-option -p -t '$session_name' @pilot-owner '$owner'"
   fi
+  tier_cmd=""
+  if [[ -n "$tier" ]]; then
+    tier_cmd=" && tmux set-option -p -t '$session_name' @pilot-tier '$tier'"
+  fi
+  trust_cmd=""
+  if [[ -n "$trust" ]]; then
+    trust_cmd=" && tmux set-option -p -t '$session_name' @pilot-trust '$trust'"
+  fi
   ssh -o ConnectTimeout=10 "$host" \
     "tmux new-session -d -s '$session_name' -c '$dir' '$path_prefix $tmux_cmd' && \
      tmux set-option -p -t '$session_name' @pilot-desc '$desc' && \
-     tmux set-option -p -t '$session_name' @pilot-agent '$agent'$owner_cmd"
+     tmux set-option -p -t '$session_name' @pilot-agent '$agent'$owner_cmd$tier_cmd$trust_cmd"
   cache_host "$host"
   printf '%s' "$session_name"
 elif [[ "$mode" == "local-ssh" ]]; then
@@ -151,6 +163,8 @@ elif [[ "$mode" == "local-ssh" ]]; then
   tmux set-option -p -t "$session_name" @pilot-host "$host"
   tmux set-option -p -t "$session_name" @pilot-mode "$mode"
   [[ -n "$owner" ]] && tmux set-option -p -t "$session_name" @pilot-owner "$owner"
+  [[ -n "$tier" ]] && tmux set-option -p -t "$session_name" @pilot-tier "$tier"
+  [[ -n "$trust" ]] && tmux set-option -p -t "$session_name" @pilot-trust "$trust"
   cache_host "$host"
   printf '%s' "$session_name"
 else
@@ -161,5 +175,7 @@ else
   tmux set-option -p -t "$session_name" @pilot-desc "$desc"
   tmux set-option -p -t "$session_name" @pilot-agent "$agent"
   [[ -n "$owner" ]] && tmux set-option -p -t "$session_name" @pilot-owner "$owner"
+  [[ -n "$tier" ]] && tmux set-option -p -t "$session_name" @pilot-tier "$tier"
+  [[ -n "$trust" ]] && tmux set-option -p -t "$session_name" @pilot-trust "$trust"
   printf '%s' "$session_name"
 fi
