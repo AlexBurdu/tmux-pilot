@@ -3,7 +3,7 @@
 # Source this file; do not execute directly.
 
 # Single source of truth for supported agent names.
-KNOWN_AGENTS="claude gemini aider codex goose interpreter"
+KNOWN_AGENTS="claude gemini aider codex goose interpreter vibe"
 
 # Build the command array for launching an agent with a prompt.
 # Sets the caller's cmd_args array.
@@ -11,6 +11,7 @@ agent_build_cmd() {
   local agent="$1" prompt="$2"
   case "$agent" in
     gemini)      cmd_args=(bash -lc 'exec gemini -y "$0"' "$prompt") ;;
+    vibe)        cmd_args=(vibe --prompt "$prompt") ;;
     aider)       cmd_args=(aider --message "$prompt") ;;
     goose)       cmd_args=(goose run "$prompt") ;;
     interpreter) cmd_args=(interpreter --message "$prompt") ;;
@@ -33,6 +34,7 @@ agent_pause() {
   case "$agent" in
     claude)      _send_text "$target" '/exit' ;;
     gemini)      _send_text "$target" '/quit' ;;
+    vibe)        _send_text "$target" '/exit' ;;
     aider)       _send_text "$target" '/exit' ;;
     goose)       tmux send-keys -t "$target" C-d ;;
     *)           tmux send-keys -t "$target" C-c ;;
@@ -47,6 +49,7 @@ agent_resume() {
   case "$agent" in
     claude)      _send_text "$target" 'claude --continue' ;;
     gemini)      _send_text "$target" "bash -lc 'gemini -y'" ;;
+    vibe)        _send_text "$target" 'vibe' ;;
     goose)       _send_text "$target" 'goose session resume' ;;
     *)           _send_text "$target" "$agent" ;;
   esac
