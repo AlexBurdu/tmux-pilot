@@ -132,6 +132,9 @@ fi
 # use: tmux set-environment -g VAR value
 tmux_cmd=$(printf '%q ' "${cmd_args[@]}")
 path_prefix='PATH="$HOME/.local/bin:$HOME/bin:$HOME/go/bin:$PATH"'
+if [[ "$agent" == "claude" ]]; then
+  path_prefix="export CLAUDE_CODE_DISABLE_AUTOCOMPLETE=true; export CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false; $path_prefix"
+fi
 desc="${prompt:0:80}"
 
 if [[ "$mode" == "remote-tmux" ]]; then
