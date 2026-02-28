@@ -5,6 +5,7 @@
 # ///
 """tmux-pilot MCP server — agent lifecycle tools for MCP-capable clients."""
 
+import asyncio
 import json
 import os
 import re
@@ -347,34 +348,58 @@ def capture_pane(target: str, lines: int = 20) -> str:
 # send_keys
 # ---------------------------------------------------------------------------
 @mcp.tool()
-def send_keys(target: str, keys: str) -> str:
+async def send_keys(target: str, keys: str) -> str:
     """Send text or key names to a tmux pane.
 
     For multi-line text, uses load-buffer + paste-buffer to write directly to
     the pane PTY, bypassing tmux popup/overlay interception. For single
     control keys (Enter, C-c, etc.), uses send-keys directly.
 
+    When text is sent to a Claude Code agent, it automatically applies an
+    Escape+delay pattern to dismiss autocomplete and sends an Enter key to
+    submit the text. In this case, the caller should NOT send a separate Enter.
+
     Args:
         target: tmux pane target (e.g. "my-session:0.0").
-        keys: Text or key names to send (e.g. "Enter", "BTab", "C-c", or arbitrary text).
+        keys: Text or key names to send (e.g. "Enter", "BTab", "C-c",
+              or arbitrary text).
     """
     if err := _validate_target(target):
         return f"Error: {err}"
     if not keys:
         return "Error: keys must not be empty"
 
-    if _TMUX_SPECIAL_KEY_RE.match(keys):
+    is_special = bool(_TMUX_SPECIAL_KEY_RE.match(keys))
+
+    if is_special:
         # Single control/special key — send directly via send-keys.
         result = _run(["tmux", "send-keys", "-t", target, keys])
-    else:
-        # Text payload — use load-buffer + paste-buffer to bypass overlays.
-        result = _run(["tmux", "load-buffer", "-"], input=keys)
         if result.returncode != 0:
-            return f"Error loading buffer: {result.stderr.strip()}"
-        result = _run(["tmux", "paste-buffer", "-d", "-p", "-t", target])
+            return f"Error: {result.stderr.strip()}"
+        return f"Sent keys to {target}"
 
+    # Text payload — use load-buffer + paste-buffer to bypass overlays.
+    result = _run(["tmux", "load-buffer", "-"], input=keys)
+    if result.returncode != 0:
+        return f"Error loading buffer: {result.stderr.strip()}"
+
+    # For Claude Code agents, apply Escape+delay and auto-submit with Enter.
+    agent_res = _run([
+        "tmux", "display", "-p", "-t", target, "#{@pilot-agent}",
+    ])
+    is_claude = agent_res.stdout.strip() == "claude"
+
+    result = _run(["tmux", "paste-buffer", "-d", "-p", "-t", target])
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
+
+    if is_claude:
+        await asyncio.sleep(0.3)  # Wait for autocomplete to engage
+        _run(["tmux", "send-keys", "-t", target, "Escape"])
+        await asyncio.sleep(0.1)  # Let Escape process
+        _run(["tmux", "send-keys", "-t", target, "Enter"])
+        return f"Sent keys to {target} (Claude delay pattern)"
+
     return f"Sent keys to {target}"
 
 
