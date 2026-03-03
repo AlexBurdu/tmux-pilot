@@ -9,11 +9,11 @@ import json
 import os
 import re
 import subprocess
-import time
 import uuid
 
 from fastmcp import FastMCP
 
+from agents import list_agent_panes
 from monitor import (
     PaneReport,
     detect_events,
@@ -130,113 +130,32 @@ def spawn_agent(
 @mcp.tool()
 def list_agents() -> str:
     """List running agent sessions with metadata (name, agent, description, directory, age, CPU, memory)."""
-    sep = "\x1f"
-    fmt = (
-        f"#{{session_name}}:#{{window_index}}.#{{pane_index}}{sep}"
-        f"#{{@pilot-agent}}{sep}"
-        f"#{{@pilot-desc}}{sep}"
-        f"#{{@pilot-workdir}}{sep}"
-        f"#{{pane_current_path}}{sep}"
-        f"#{{window_activity}}{sep}"
-        f"#{{pane_pid}}{sep}"
-        f"#{{@pilot-host}}{sep}"
-        f"#{{@pilot-mode}}"
-    )
-    result = _run(["tmux", "list-panes", "-a", "-F", fmt])
-    if result.returncode != 0:
-        return f"Error: {result.stderr.strip()}"
+    agents = list_agent_panes()
+    if not agents:
+        return "No agent sessions found."
 
-    if not result.stdout.strip():
-        return "No panes found."
-
-    # Gather process stats in one call
-    ps_result = _run(["ps", "-ax", "-o", "pid=,ppid=,rss=,%cpu="])
-    procs: dict[int, tuple[int, int, float]] = {}  # pid -> (ppid, rss_kb, cpu%)
-    if ps_result.returncode == 0:
-        for line in ps_result.stdout.strip().splitlines():
-            parts = line.split()
-            if len(parts) >= 4:
-                try:
-                    procs[int(parts[0])] = (int(parts[1]), int(parts[2]), float(parts[3]))
-                except (ValueError, IndexError):
-                    continue
-
-    def tree_stats(root_pid: int) -> tuple[int, float]:
-        """Sum RSS (KB) and CPU% for the full process tree under root_pid."""
-        pids = {root_pid}
-        changed = True
-        while changed:
-            changed = False
-            for pid, (ppid, _, _) in procs.items():
-                if pid not in pids and ppid in pids:
-                    pids.add(pid)
-                    changed = True
-        total_rss = sum(procs[p][1] for p in pids if p in procs)
-        total_cpu = sum(procs[p][2] for p in pids if p in procs)
-        return total_rss, total_cpu
-
-    def fmt_mem(kb: int) -> str:
-        if kb >= 1048576:
-            return f"{kb / 1048576:.1f}G"
-        if kb >= 1024:
-            return f"{kb // 1024}M"
-        return f"{kb}K"
-
-    def fmt_age(elapsed: int) -> str:
-        if elapsed < 60:
-            return "active"
-        if elapsed < 3600:
-            return f"{elapsed // 60}m ago"
-        if elapsed < 86400:
-            return f"{elapsed // 3600}h ago"
-        return f"{elapsed // 86400}d ago"
-
-    now = int(time.time())
     lines: list[str] = []
-
-    for raw_line in result.stdout.strip().splitlines():
-        # tmux <3.5 escapes 0x1F to literal \037 in format output; decode it
-        raw_line = raw_line.replace("\\037", sep)
-        parts = raw_line.split(sep)
-        if len(parts) < 7:
-            continue
-        # Pad to 9 fields for backwards compat with older tmux metadata
-        while len(parts) < 9:
-            parts.append("")
-        target, agent, desc, workdir, path, activity_s, pane_pid_s, phost, pmode = parts
-
-        directory = workdir if workdir else path
-        try:
-            activity = int(activity_s)
-            age = fmt_age(now - activity)
-        except ValueError:
-            age = "?"
-
-        try:
-            pane_pid = int(pane_pid_s)
-            rss, cpu = tree_stats(pane_pid)
-            mem_str = fmt_mem(rss)
-            cpu_str = f"{int(cpu)}%"
-        except ValueError:
-            mem_str = "?"
-            cpu_str = "?"
-
-        host_info = f"  host={phost} ({pmode})" if phost else ""
+    for a in agents:
+        host_info = (
+            f"  host={a.host} ({a.mode})"
+            if a.host else ""
+        )
         entry = (
-            f"  {target}"
-            f"  agent={agent or '?'}"
-            f"  desc=\"{desc}\""
-            f"  dir={directory}"
-            f"  age={age}"
-            f"  cpu={cpu_str}"
-            f"  mem={mem_str}"
+            f"  {a.target}"
+            f"  agent={a.agent or '?'}"
+            f"  desc=\"{a.desc}\""
+            f"  dir={a.workdir}"
+            f"  age={a.age}"
+            f"  cpu={a.cpu}"
+            f"  mem={a.memory}"
             f"{host_info}"
         )
         lines.append(entry)
 
-    if not lines:
-        return "No agent sessions found."
-    return f"{len(lines)} pane(s):\n" + "\n".join(lines)
+    return (
+        f"{len(lines)} pane(s):\n"
+        + "\n".join(lines)
+    )
 
 
 # ---------------------------------------------------------------------------
