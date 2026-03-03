@@ -12,9 +12,17 @@ get_opt() {
   echo "${value:-$default}"
 }
 
+# Source user configuration for private overrides
+# (e.g. ~/.config/tmux-pilot/config.conf)
+tmux source-file -q \
+  "$HOME/.config/tmux-pilot/config.conf" \
+  2>/dev/null || true
+
 key_new=$(get_opt "@pilot-key-new-agent" "a")
 key_deck=$(get_opt "@pilot-key-deck" "e")
 key_vcs=$(get_opt "@pilot-key-vcs-status" "d")
+key_dash=$(get_opt "@pilot-key-dashboard" "")
+dash_cmd=$(get_opt "@pilot-dashboard-cmd" "")
 
 popup_new_w=$(get_opt "@pilot-popup-new-agent-width" "40%")
 popup_new_h=$(get_opt "@pilot-popup-new-agent-height" "50%")
@@ -37,3 +45,8 @@ tmux bind-key "$key_vcs" display-popup \
   -y '#{e|+|:#{popup_centre_y},1}' \
   -d '#{?@pilot-workdir,#{@pilot-workdir},#{pane_current_path}}' -E \
   "$CURRENT_DIR/scripts/vcs-status.sh"
+
+# User-configured dashboard keybinding
+if [ -n "$key_dash" ] && [ -n "$dash_cmd" ]; then
+  tmux bind-key "$key_dash" run-shell "$dash_cmd"
+fi
