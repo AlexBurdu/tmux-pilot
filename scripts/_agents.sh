@@ -15,6 +15,7 @@ agent_build_cmd() {
     aider)       cmd_args=(aider --message "$prompt") ;;
     goose)       cmd_args=(goose run "$prompt") ;;
     interpreter) cmd_args=(interpreter --message "$prompt") ;;
+    claude)      cmd_args=(env CLAUDE_CODE_DISABLE_AUTOCOMPLETE=true CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false claude "$prompt") ;;
     *)           cmd_args=("$agent" "$prompt") ;;
   esac
 }
