@@ -135,7 +135,7 @@ path_prefix='PATH="$HOME/.local/bin:$HOME/bin:$HOME/go/bin:$PATH"'
 if [[ "$agent" == "claude" ]]; then
   path_prefix="export CLAUDE_CODE_DISABLE_AUTOCOMPLETE=true; export CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false; $path_prefix"
 fi
-desc="${prompt:0:80}"
+desc=$(tr '\n' ' ' <<< "${prompt:0:80}")
 
 if [[ "$mode" == "remote-tmux" ]]; then
   # Fully remote: create a tmux session on the remote host via SSH

@@ -145,9 +145,27 @@ def parse_pane_lines(
     sep = "\x1f"
     agents: list[AgentInfo] = []
 
-    for raw_line in raw_output.strip().splitlines():
-        # tmux <3.5 escapes 0x1F to literal \037
-        raw_line = raw_line.replace("\\037", sep)
+    # Pre-join continuation lines caused by
+    # newlines inside tmux variables (e.g.
+    # multiline @pilot-desc). A valid pane line
+    # has >=13 separators (14 fields). When a
+    # line has fewer, it is either a
+    # continuation of the previous line's
+    # multiline field, or the start of a
+    # broken entry. We accumulate until the
+    # total separator count is sufficient.
+    raw_lines: list[str] = []
+    for line in raw_output.strip().splitlines():
+        line = line.replace("\\037", sep)
+        if (
+            raw_lines
+            and raw_lines[-1].count(sep) < 13
+        ):
+            raw_lines[-1] += " " + line
+        else:
+            raw_lines.append(line)
+
+    for raw_line in raw_lines:
         parts = raw_line.split(sep)
         if len(parts) < 7:
             continue
