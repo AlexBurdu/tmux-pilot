@@ -67,6 +67,7 @@ def spawn_agent(
     owner: str | None = None,
     tier: str | None = None,
     trust: str | None = None,
+    agent_args: str | None = None,
 ) -> str:
     """Create a new AI agent in its own tmux session.
 
@@ -84,6 +85,8 @@ def spawn_agent(
                (e.g. remote MCP) and the caller knows its own pane ID.
         tier: Optional tier label (string). Sets @pilot-tier pane variable.
         trust: Optional trust level (string). Sets @pilot-trust pane variable.
+        agent_args: Optional extra CLI arguments passed to the agent binary
+                    (e.g. "--subtree-only --no-show-model-warnings" for aider).
     """
     # Explicit owner overrides auto-detection.
     # Fall back to $TMUX_PANE (works when the MCP
@@ -110,6 +113,8 @@ def spawn_agent(
         cmd += ["--tier", tier]
     if trust:
         cmd += ["--trust", trust]
+    if agent_args:
+        cmd += ["--agent-args", agent_args]
 
     result = _run(cmd)
     if result.returncode != 0:

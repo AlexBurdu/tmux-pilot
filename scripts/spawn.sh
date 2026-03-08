@@ -6,7 +6,7 @@
 #   spawn.sh --agent <name> --prompt <text> --dir <path> [--session <name>]
 #            [--host <hostname>] [--mode local-ssh|remote-tmux]
 #            [--owner <session-name>] [--tier <string>]
-#            [--trust <string>]
+#            [--trust <string>] [--agent-args <string>]
 #
 # Outputs the session name to stdout on success.
 set -euo pipefail
@@ -16,18 +16,19 @@ source "$CURRENT_DIR/_agents.sh"
 source "$CURRENT_DIR/_hosts.sh"
 
 agent="" prompt="" dir="" session_override="" host="" mode="" owner=""
-tier="" trust=""
+tier="" trust="" agent_args=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --agent)   agent="$2"; shift 2 ;;
-    --prompt)  prompt="$2"; shift 2 ;;
-    --dir)     dir="$2"; shift 2 ;;
-    --session) session_override="$2"; shift 2 ;;
-    --host)    host="$2"; shift 2 ;;
-    --mode)    mode="$2"; shift 2 ;;
-    --owner)   owner="$2"; shift 2 ;;
-    --tier)    tier="$2"; shift 2 ;;
-    --trust)   trust="$2"; shift 2 ;;
+    --agent)      agent="$2"; shift 2 ;;
+    --prompt)     prompt="$2"; shift 2 ;;
+    --dir)        dir="$2"; shift 2 ;;
+    --session)    session_override="$2"; shift 2 ;;
+    --host)       host="$2"; shift 2 ;;
+    --mode)       mode="$2"; shift 2 ;;
+    --owner)      owner="$2"; shift 2 ;;
+    --tier)       tier="$2"; shift 2 ;;
+    --trust)      trust="$2"; shift 2 ;;
+    --agent-args) agent_args="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -74,7 +75,7 @@ fi
 
 # Build agent command
 cmd_args=()
-agent_build_cmd "$agent" "$prompt"
+agent_build_cmd "$agent" "$prompt" "$agent_args"
 
 # Generate session name (same algorithm as new-agent.sh)
 if [[ -n "$session_override" ]]; then

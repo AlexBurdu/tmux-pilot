@@ -7,16 +7,24 @@ KNOWN_AGENTS="claude gemini aider codex goose interpreter vibe"
 
 # Build the command array for launching an agent with a prompt.
 # Sets the caller's cmd_args array.
+#
+# Args:
+#   $1 - agent name
+#   $2 - prompt text
+#   $3 - optional extra CLI args (space-separated) appended
+#        before the prompt/message flag. Useful for passing
+#        agent-specific flags like --subtree-only for aider.
 agent_build_cmd() {
-  local agent="$1" prompt="$2"
+  local agent="$1" prompt="$2" extra_args="${3:-}"
+  # shellcheck disable=SC2086
   case "$agent" in
     gemini)      cmd_args=(bash -lc 'exec gemini -y "$0"' "$prompt") ;;
     vibe)        cmd_args=(vibe --prompt "$prompt") ;;
-    aider)       cmd_args=(bash -lc 'exec aider --message "$0"' "$prompt") ;;
+    aider)       cmd_args=(bash -lc "exec aider $extra_args --message \"\$0\"" "$prompt") ;;
     goose)       cmd_args=(goose run "$prompt") ;;
     interpreter) cmd_args=(interpreter --message "$prompt") ;;
-    claude)      cmd_args=(env CLAUDE_CODE_DISABLE_AUTOCOMPLETE=true CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false claude "$prompt") ;;
-    *)           cmd_args=("$agent" "$prompt") ;;
+    claude)      cmd_args=(env CLAUDE_CODE_DISABLE_AUTOCOMPLETE=true CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false claude $extra_args "$prompt") ;;
+    *)           cmd_args=("$agent" $extra_args "$prompt") ;;
   esac
 }
 
