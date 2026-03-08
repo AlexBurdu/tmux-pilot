@@ -12,7 +12,7 @@ agent_build_cmd() {
   case "$agent" in
     gemini)      cmd_args=(bash -lc 'exec gemini -y "$0"' "$prompt") ;;
     vibe)        cmd_args=(vibe --prompt "$prompt") ;;
-    aider)       cmd_args=(aider --message "$prompt") ;;
+    aider)       cmd_args=(bash -lc 'exec aider --message "$0"' "$prompt") ;;
     goose)       cmd_args=(goose run "$prompt") ;;
     interpreter) cmd_args=(interpreter --message "$prompt") ;;
     claude)      cmd_args=(env CLAUDE_CODE_DISABLE_AUTOCOMPLETE=true CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION=false claude "$prompt") ;;
