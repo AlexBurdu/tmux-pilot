@@ -194,6 +194,7 @@ tmux-pilot will display in the deck.
 | `@pilot-status` | external tool, deck | deck | Status enum (see below) |
 | `@pilot-owner` | spawn.sh (MCP) | deck, transfer_ownership | Orchestrator session name that spawned this agent |
 | `@pilot-needs-help` | external tool | deck | "" or description |
+| `@pilot-review-target` | orchestrator | external tool | Pane target for review notifications |
 
 ### Status enum
 
@@ -220,6 +221,17 @@ tmux set-option -p @pilot-status "working"
 tmux set-option -p @pilot-status "waiting"
 tmux set-option -p @pilot-needs-help "high-risk: rm -rf /"
 ```
+
+### Review target
+
+`@pilot-review-target` is an optional pane variable for routing review notifications. When set on an orchestrator pane, monitoring tools can route review-related events directly to this target instead of the orchestrator. This avoids consuming orchestrator context for review relay.
+
+```bash
+# Set on the orchestrator pane after spawning a review agent
+tmux set-option -p @pilot-review-target "my-reviewer:0.0"
+```
+
+tmux-pilot does not read this variable itself — it is a convention for external monitoring tools that route events between panes.
 
 ## Working directory tracking
 
