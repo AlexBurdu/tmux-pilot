@@ -6,7 +6,8 @@
 #   spawn.sh --agent <name> --prompt <text> --dir <path> [--session <name>]
 #            [--host <hostname>] [--mode local-ssh|remote-tmux]
 #            [--owner <session-name>] [--tier <string>]
-#            [--trust <string>] [--agent-args <string>]
+#            [--trust <string>] [--review-target <pane>]
+#            [--review-context <text>] [--agent-args <string>]
 #
 # Outputs the session name to stdout on success.
 set -euo pipefail
@@ -16,7 +17,7 @@ source "$CURRENT_DIR/_agents.sh"
 source "$CURRENT_DIR/_hosts.sh"
 
 agent="" prompt="" dir="" session_override="" host="" mode="" owner=""
-tier="" trust="" agent_args=""
+tier="" trust="" review_target="" review_context="" agent_args=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --agent)      agent="$2"; shift 2 ;;
@@ -27,8 +28,10 @@ while [[ $# -gt 0 ]]; do
     --mode)       mode="$2"; shift 2 ;;
     --owner)      owner="$2"; shift 2 ;;
     --tier)       tier="$2"; shift 2 ;;
-    --trust)      trust="$2"; shift 2 ;;
-    --agent-args) agent_args="$2"; shift 2 ;;
+    --trust)          trust="$2"; shift 2 ;;
+    --review-target)  review_target="$2"; shift 2 ;;
+    --review-context) review_context="$2"; shift 2 ;;
+    --agent-args)     agent_args="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -152,10 +155,18 @@ if [[ "$mode" == "remote-tmux" ]]; then
   if [[ -n "$trust" ]]; then
     trust_cmd=" && tmux set-option -p -t '$session_name' @pilot-trust '$trust'"
   fi
+  rtarget_cmd=""
+  if [[ -n "$review_target" ]]; then
+    rtarget_cmd=" && tmux set-option -p -t '$session_name' @pilot-review-target '$review_target'"
+  fi
+  rctx_cmd=""
+  if [[ -n "$review_context" ]]; then
+    rctx_cmd=" && tmux set-option -p -t '$session_name' @pilot-review-context '$review_context'"
+  fi
   ssh -o ConnectTimeout=10 "$host" \
     "tmux new-session -d -s '$session_name' -c '$dir' '$path_prefix $tmux_cmd' && \
      tmux set-option -p -t '$session_name' @pilot-desc '$desc' && \
-     tmux set-option -p -t '$session_name' @pilot-agent '$agent'$owner_cmd$tier_cmd$trust_cmd"
+     tmux set-option -p -t '$session_name' @pilot-agent '$agent'$owner_cmd$tier_cmd$trust_cmd$rtarget_cmd$rctx_cmd"
   cache_host "$host"
   printf '%s' "$session_name"
 elif [[ "$mode" == "local-ssh" ]]; then
@@ -169,6 +180,8 @@ elif [[ "$mode" == "local-ssh" ]]; then
   [[ -n "$owner" ]] && tmux set-option -p -t "$session_name" @pilot-owner "$owner"
   [[ -n "$tier" ]] && tmux set-option -p -t "$session_name" @pilot-tier "$tier"
   [[ -n "$trust" ]] && tmux set-option -p -t "$session_name" @pilot-trust "$trust"
+  [[ -n "$review_target" ]] && tmux set-option -p -t "$session_name" @pilot-review-target "$review_target"
+  [[ -n "$review_context" ]] && tmux set-option -p -t "$session_name" @pilot-review-context "$review_context"
   cache_host "$host"
   printf '%s' "$session_name"
 else
@@ -181,5 +194,7 @@ else
   [[ -n "$owner" ]] && tmux set-option -p -t "$session_name" @pilot-owner "$owner"
   [[ -n "$tier" ]] && tmux set-option -p -t "$session_name" @pilot-tier "$tier"
   [[ -n "$trust" ]] && tmux set-option -p -t "$session_name" @pilot-trust "$trust"
+  [[ -n "$review_target" ]] && tmux set-option -p -t "$session_name" @pilot-review-target "$review_target"
+  [[ -n "$review_context" ]] && tmux set-option -p -t "$session_name" @pilot-review-context "$review_context"
   printf '%s' "$session_name"
 fi
