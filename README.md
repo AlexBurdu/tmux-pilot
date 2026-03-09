@@ -194,6 +194,8 @@ tmux-pilot will display in the deck.
 | `@pilot-status` | external tool, deck | deck | Status enum (see below) |
 | `@pilot-owner` | spawn.sh (MCP) | deck, transfer_ownership | Orchestrator session name that spawned this agent |
 | `@pilot-needs-help` | external tool | deck | "" or description |
+| `@pilot-review-target` | orchestrator | external tool | Pane target for review notifications |
+| `@pilot-review-context` | orchestrator | external tool | Task-specific review hints for the worker |
 
 ### Status enum
 
@@ -220,6 +222,26 @@ tmux set-option -p @pilot-status "working"
 tmux set-option -p @pilot-status "waiting"
 tmux set-option -p @pilot-needs-help "high-risk: rm -rf /"
 ```
+
+### Review target
+
+`@pilot-review-target` is an optional pane variable for routing review notifications. When set on an orchestrator pane, monitoring tools can route review-related events directly to this target instead of the orchestrator. This avoids consuming orchestrator context for review relay.
+
+```bash
+# Set on the orchestrator pane after spawning a review agent
+tmux set-option -p @pilot-review-target "my-reviewer:0.0"
+```
+
+### Review context
+
+`@pilot-review-context` is an optional pane variable for attaching task-specific review hints to a worker pane. When monitoring tools route review notifications to a review target, they can read this variable from the source pane and include it in the notification. This makes the review agent stateless — it receives fresh context with each event.
+
+```bash
+# Set on the worker pane after spawning
+tmux set-option -p -t <worker-pane> @pilot-review-context "verify threshold stays at 10"
+```
+
+tmux-pilot does not read these variables itself — they are conventions for external monitoring tools that route events between panes.
 
 ## Working directory tracking
 
