@@ -67,6 +67,8 @@ def spawn_agent(
     owner: str | None = None,
     tier: str | None = None,
     trust: str | None = None,
+    review_target: str | None = None,
+    review_context: str | None = None,
     agent_args: str | None = None,
 ) -> str:
     """Create a new AI agent in its own tmux session.
@@ -85,6 +87,10 @@ def spawn_agent(
                (e.g. remote MCP) and the caller knows its own pane ID.
         tier: Optional tier label (string). Sets @pilot-tier pane variable.
         trust: Optional trust level (string). Sets @pilot-trust pane variable.
+        review_target: Optional pane target for routing review notifications.
+                       Sets @pilot-review-target pane variable.
+        review_context: Optional task-specific review hints for the worker.
+                        Sets @pilot-review-context pane variable.
         agent_args: Optional extra CLI arguments passed to the agent binary
                     (e.g. "--subtree-only --no-show-model-warnings" for aider).
     """
@@ -113,6 +119,14 @@ def spawn_agent(
         cmd += ["--tier", tier]
     if trust:
         cmd += ["--trust", trust]
+    if review_target:
+        cmd += [
+            "--review-target", review_target,
+        ]
+    if review_context:
+        cmd += [
+            "--review-context", review_context,
+        ]
     if agent_args:
         cmd += ["--agent-args", agent_args]
 

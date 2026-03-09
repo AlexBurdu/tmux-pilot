@@ -40,13 +40,17 @@ def _make_line(
     owner="%5",
     tier="",
     trust="",
+    review_target="",
+    review_context="",
     session="s",
 ):
     """Build a single tmux list-panes output line."""
     return SEP.join([
         target, agent, desc, workdir, path,
         activity, pid, host, mode, status,
-        owner, tier, trust, session,
+        owner, tier, trust,
+        review_target, review_context,
+        session,
     ])
 
 
@@ -281,6 +285,22 @@ class TestParsePaneLines(unittest.TestCase):
         self.assertEqual(agents[0].tier, "L4")
         self.assertEqual(agents[0].trust, "high")
 
+    def test_review_target_and_context(self):
+        line = _make_line(
+            review_target="rev:0.0",
+            review_context="check threshold",
+        )
+        agents = parse_pane_lines(
+            line, procs=None, now=1709500060
+        )
+        self.assertEqual(
+            agents[0].review_target, "rev:0.0"
+        )
+        self.assertEqual(
+            agents[0].review_context,
+            "check threshold",
+        )
+
     def test_session_field(self):
         line = _make_line(session="issue-42")
         agents = parse_pane_lines(
@@ -291,7 +311,7 @@ class TestParsePaneLines(unittest.TestCase):
         )
 
     def test_padding_short_fields(self):
-        """Lines with 7-13 fields get padded."""
+        """Lines with 7-15 fields get padded."""
         # Only 7 fields (minimum)
         parts = [
             "s:0.0", "claude", "desc",
