@@ -30,6 +30,9 @@ class AgentInfo:
     trust: str = ""
     review_target: str = ""
     review_context: str = ""
+    issue: str = ""
+    worktree: str = ""
+    repo: str = ""
     cpu: str = ""
     memory: str = ""
     session: str = ""
@@ -161,7 +164,7 @@ def parse_pane_lines(
         line = line.replace("\\037", sep)
         if (
             raw_lines
-            and raw_lines[-1].count(sep) < 15
+            and raw_lines[-1].count(sep) < 18
         ):
             raw_lines[-1] += " " + line
         else:
@@ -172,15 +175,16 @@ def parse_pane_lines(
         if len(parts) < 7:
             continue
         # Pad to expected field count
-        while len(parts) < 16:
+        while len(parts) < 19:
             parts.append("")
         (
             target, agent, desc, workdir, path,
             activity_s, pane_pid_s, phost, pmode,
             pstatus, powner, ptier, ptrust,
             preview_target, preview_context,
+            pissue, pworktree, prepo,
             session,
-        ) = parts[:16]
+        ) = parts[:19]
 
         directory = workdir if workdir else path
 
@@ -220,6 +224,9 @@ def parse_pane_lines(
             trust=ptrust,
             review_target=preview_target,
             review_context=preview_context,
+            issue=pissue,
+            worktree=pworktree,
+            repo=prepo,
             cpu=cpu_str,
             memory=mem_str,
             session=session,
@@ -247,6 +254,9 @@ PANE_FORMAT_FIELDS = [
     "#{@pilot-trust}",
     "#{@pilot-review-target}",
     "#{@pilot-review-context}",
+    "#{@pilot-issue}",
+    "#{@pilot-worktree}",
+    "#{@pilot-repo}",
     "#{session_name}",
 ]
 

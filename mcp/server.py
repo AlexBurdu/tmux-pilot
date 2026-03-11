@@ -69,6 +69,9 @@ def spawn_agent(
     trust: str | None = None,
     review_target: str | None = None,
     review_context: str | None = None,
+    issue: str | None = None,
+    worktree: str | None = None,
+    repo: str | None = None,
     agent_args: str | None = None,
 ) -> str:
     """Create a new AI agent in its own tmux session.
@@ -91,6 +94,9 @@ def spawn_agent(
                        Sets @pilot-review-target pane variable.
         review_context: Optional task-specific review hints for the worker.
                         Sets @pilot-review-context pane variable.
+        issue: Optional issue number (string). Sets @pilot-issue pane variable.
+        worktree: Optional worktree path. Sets @pilot-worktree pane variable.
+        repo: Optional repo root path. Sets @pilot-repo pane variable.
         agent_args: Optional extra CLI arguments passed to the agent binary
                     (e.g. "--subtree-only --no-show-model-warnings" for aider).
     """
@@ -127,6 +133,12 @@ def spawn_agent(
         cmd += [
             "--review-context", review_context,
         ]
+    if issue:
+        cmd += ["--issue", issue]
+    if worktree:
+        cmd += ["--worktree", worktree]
+    if repo:
+        cmd += ["--repo", repo]
     if agent_args:
         cmd += ["--agent-args", agent_args]
 
@@ -159,6 +171,9 @@ def list_agents() -> str:
             f"  host={a.host} ({a.mode})"
             if a.host else ""
         )
+        issue_info = (
+            f"  issue={a.issue}" if a.issue else ""
+        )
         entry = (
             f"  {a.target}"
             f"  agent={a.agent or '?'}"
@@ -168,6 +183,7 @@ def list_agents() -> str:
             f"  cpu={a.cpu}"
             f"  mem={a.memory}"
             f"{host_info}"
+            f"{issue_info}"
         )
         lines.append(entry)
 
