@@ -305,11 +305,15 @@ def send_keys(target: str, keys: str) -> str:
         # Single control/special key — send directly via send-keys.
         result = _run(["tmux", "send-keys", "-t", target, keys])
     else:
-        # Text payload — use load-buffer + paste-buffer to bypass overlays.
-        result = _run(["tmux", "load-buffer", "-"], input=keys)
-        if result.returncode != 0:
-            return f"Error loading buffer: {result.stderr.strip()}"
-        result = _run(["tmux", "paste-buffer", "-d", "-p", "-t", target])
+        # Text payload — use unified logic from _keys.sh via bash.
+        # This handles the extra Enter + delay for vibe agents,
+        # while keeping the default 'no Enter' for other agents.
+        cmd = [
+            "bash", "-c",
+            'source "$1/_keys.sh" && send_text "$2" "$3" "1"',
+            "--", SCRIPTS_DIR, target, keys,
+        ]
+        result = _run(cmd)
 
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"

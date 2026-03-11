@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Shared agent configuration — launch commands, pause/resume.
 # Source this file; do not execute directly.
+CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Single source of truth for supported agent names.
 KNOWN_AGENTS="claude gemini aider codex goose interpreter vibe"
+
+source "$CURRENT_DIR/_keys.sh"
 
 # Build the command array for launching an agent with a prompt.
 # Sets the caller's cmd_args array.
@@ -31,10 +34,7 @@ agent_build_cmd() {
 # Send text to a pane via paste-buffer (bypasses popup overlays).
 # Control keys still use send-keys since paste-buffer can't send them.
 _send_text() {
-  local target="$1" text="$2"
-  printf '%s' "$text" | tmux load-buffer -
-  tmux paste-buffer -d -p -t "$target"
-  tmux send-keys -t "$target" Enter
+  send_text "$1" "$2"
 }
 
 # Send the appropriate stop command to a pane.
