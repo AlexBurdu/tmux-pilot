@@ -8,12 +8,7 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$CURRENT_DIR/_agents.sh"
 source "$CURRENT_DIR/_hosts.sh"
 
-# Detect available coding agents from the shared list
-agents=""
-for name in $KNOWN_AGENTS; do
-  command -v "$name" &>/dev/null && agents+="${name}"$'\n'
-done
-agents="${agents%$'\n'}"
+agents=$(list_available_agents)
 
 if [[ -z "$agents" ]]; then
   printf '\n  No AI agents found.\n'
@@ -124,7 +119,8 @@ fi
 if $multi_agent; then
   printf '\n  [%d/%d] Select an agent %s\n' \
     "$step" "$total" "$esc_hint"
-  agent=$(fzf --no-info --no-separator --height=4 --reverse <<< "$agents")
+  agent=$(fzf --no-info --no-separator \
+    --height=~100% --reverse <<< "$agents")
   ((step++))
 else
   agent="$agents"

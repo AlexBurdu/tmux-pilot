@@ -174,6 +174,35 @@ def list_agents() -> str:
         issue_info = (
             f"  issue={a.issue}" if a.issue else ""
         )
+        status_info = (
+            f"  status={a.status}" if a.status else ""
+        )
+        owner_info = (
+            f"  owner={a.owner}" if a.owner else ""
+        )
+        tier_info = (
+            f"  tier={a.tier}" if a.tier else ""
+        )
+        trust_info = (
+            f"  trust={a.trust}" if a.trust else ""
+        )
+        review_target_info = (
+            f"  review_target={a.review_target}"
+            if a.review_target else ""
+        )
+        review_context_info = (
+            f"  review_ctx={a.review_context}"
+            if a.review_context else ""
+        )
+        worktree_info = (
+            f"  worktree={a.worktree}" if a.worktree else ""
+        )
+        repo_info = (
+            f"  repo={a.repo}" if a.repo else ""
+        )
+        pane_id_info = (
+            f"  pane_id={a.pane_id}" if a.pane_id else ""
+        )
         entry = (
             f"  {a.target}"
             f"  agent={a.agent or '?'}"
@@ -182,8 +211,17 @@ def list_agents() -> str:
             f"  age={a.age}"
             f"  cpu={a.cpu}"
             f"  mem={a.memory}"
+            f"{pane_id_info}"
             f"{host_info}"
             f"{issue_info}"
+            f"{status_info}"
+            f"{owner_info}"
+            f"{tier_info}"
+            f"{trust_info}"
+            f"{review_target_info}"
+            f"{review_context_info}"
+            f"{worktree_info}"
+            f"{repo_info}"
         )
         lines.append(entry)
 
