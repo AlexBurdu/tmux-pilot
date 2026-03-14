@@ -209,7 +209,15 @@ elif [[ "$mode" == "local-ssh" ]]; then
   tmux set-option -p -t "$session_name" @pilot-agent "$agent"
   tmux set-option -p -t "$session_name" @pilot-host "$host"
   tmux set-option -p -t "$session_name" @pilot-mode "$mode"
-  [[ -n "$owner" ]] && tmux set-option -p -t "$session_name" @pilot-owner "$owner"
+  [[ -n "$owner" ]] && {
+    tmux set-option -p -t "$session_name" \
+      @pilot-owner "$owner"
+    _ouuid=$(tmux display-message -t "$owner" \
+      -p '#{@pilot-uuid}' 2>/dev/null) || _ouuid=""
+    [[ -n "$_ouuid" ]] && \
+      tmux set-option -p -t "$session_name" \
+        @pilot-owner-uuid "$_ouuid"
+  }
   [[ -n "$tier" ]] && tmux set-option -p -t "$session_name" @pilot-tier "$tier"
   [[ -n "$trust" ]] && tmux set-option -p -t "$session_name" @pilot-trust "$trust"
   [[ -n "$review_target" ]] && tmux set-option -p -t "$session_name" @pilot-review-target "$review_target"
@@ -226,7 +234,15 @@ else
     "$path_prefix $tmux_cmd"
   tmux set-option -p -t "$session_name" @pilot-desc "$desc"
   tmux set-option -p -t "$session_name" @pilot-agent "$agent"
-  [[ -n "$owner" ]] && tmux set-option -p -t "$session_name" @pilot-owner "$owner"
+  [[ -n "$owner" ]] && {
+    tmux set-option -p -t "$session_name" \
+      @pilot-owner "$owner"
+    _ouuid=$(tmux display-message -t "$owner" \
+      -p '#{@pilot-uuid}' 2>/dev/null) || _ouuid=""
+    [[ -n "$_ouuid" ]] && \
+      tmux set-option -p -t "$session_name" \
+        @pilot-owner-uuid "$_ouuid"
+  }
   [[ -n "$tier" ]] && tmux set-option -p -t "$session_name" @pilot-tier "$tier"
   [[ -n "$trust" ]] && tmux set-option -p -t "$session_name" @pilot-trust "$trust"
   [[ -n "$review_target" ]] && tmux set-option -p -t "$session_name" @pilot-review-target "$review_target"
