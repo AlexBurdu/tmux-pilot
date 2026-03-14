@@ -10,36 +10,9 @@ set -euo pipefail
 
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$CURRENT_DIR/_agents.sh"
+source "$CURRENT_DIR/_hosts.sh"
 # Unit separator — safe delimiter
 SEP=$'\x1f'
-
-# Status enum → emoji mapping.
-# External tools write semantic values to @pilot-status;
-# the deck renders them as icons.
-# Set @pilot-status-ascii "1" in tmux.conf for BMP fallback.
-USE_ASCII=$(tmux show-option -gqv @pilot-status-ascii 2>/dev/null)
-status_icon() {
-  local raw="$1"
-  if [[ "$USE_ASCII" == "1" ]]; then
-    case "$raw" in
-      working)  printf '\033[32m●\033[0m' ;;  # green
-      watching) printf '\033[34m◉\033[0m' ;;  # blue
-      waiting)  printf '\033[33m⚠\033[0m' ;;  # yellow
-      paused)   printf '\033[90m‖\033[0m' ;;  # gray
-      done)     printf '\033[32m✔\033[0m' ;;  # green
-      *)        printf ' ' ;;
-    esac
-  else
-    case "$raw" in
-      working)  printf '▶️' ;;
-      watching) printf '👀' ;;
-      waiting)  printf '✋' ;;
-      paused)   printf '⏸️' ;;
-      done)     printf '✅' ;;
-      *)        printf ' ' ;;
-    esac
-  fi
-}
 
 # Get human-readable RSS of a process tree.
 # Reads ps output from stdin, takes root PID as $1.
@@ -69,140 +42,111 @@ pane_tree_cpu() {
     }'
 }
 
-# Compute column widths from terminal size.
-# Sets globals: COL_SES COL_PANE COL_STATUS COL_AGE COL_CPU COL_MEM
-compute_layout() {
-  local total_cols popup_w client_w pct
-  # Query tmux directly (tput unreliable during popup PTY init)
-  popup_w=$(tmux show-option -gqv @pilot-popup-deck-width 2>/dev/null)
-  : "${popup_w:=95%}"
-  if [[ "$popup_w" == *% ]]; then
-    client_w=$(tmux display-message -p '#{client_width}' 2>/dev/null) || client_w=120
-    pct=${popup_w%'%'}
-    total_cols=$(( client_w * pct / 100 ))
-  else
-    total_cols=$popup_w
+# Ensure all panes have a UUID (@pilot-uuid)
+tmux list-panes -a \
+  -F '#{session_name}:#{window_index}.#{pane_index} #{@pilot-uuid}' |
+while read -r t oid; do
+  if [[ -z "$oid" ]]; then
+    oid=$(uuidgen | tr '[:upper:]' '[:lower:]' \
+      | cut -c1-12)
+    tmux set-option -p -t "$t" \
+      @pilot-uuid "$oid" 2>/dev/null || true
   fi
-  # List panel: 40% of popup minus fzf chrome (preview gets 60%)
-  local list_w=$(( total_cols * 40 / 100 - 4 ))
+done
 
-  # Fixed-width columns (never truncated)
-  COL_AGE=7    # "active", "5m ago", "12h ago"
-  COL_CPU=4    # "0%", "100%"
-  COL_MEM=5    # "1.3G", "429M"
-  COL_PANE=14  # window_name:win_idx.pane_idx
-  COL_STATUS=4 # status emoji
-  local gaps=10  # column-t 2-space gaps between 6 columns (5 gaps)
-  local fixed=$(( COL_PANE + COL_STATUS + COL_AGE + COL_CPU + COL_MEM + gaps ))
+# Separator for fzf header (fixed width).
+COL_SEP=$(printf '─%.0s' $(seq 1 60))
 
-  # Session column gets whatever space remains after fixed columns
-  COL_SES=$(( list_w - fixed ))
-  if [[ $COL_SES -lt 8 ]]; then COL_SES=8; fi
-}
-compute_layout
-
-# Column header with bold styling (fzf --ansi processes escape codes)
-COL_HEADER=$(printf '\033[1m%-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s  %-*.*s\033[0m' \
-  "$COL_SES" "$COL_SES" "SESSION" "$COL_PANE" "$COL_PANE" "PANE" \
-  "$COL_STATUS" "$COL_STATUS" "STAT" \
-  "$COL_AGE" "$COL_AGE" "AGE" "$COL_CPU" "$COL_CPU" "CPU" "$COL_MEM" "$COL_MEM" "MEM")
-
-# Separator line matching column header width
-COL_SEP_W=$(( COL_SES + COL_PANE + COL_STATUS + COL_AGE + COL_CPU + COL_MEM + 10 ))
-COL_SEP=$(printf '─%.0s' $(seq 1 "$COL_SEP_W"))
-
-# Align pre-truncated columns (column -t handles emoji/wide chars).
-# A ruler row forces column-t to allocate full budgeted widths
-# even when actual data is shorter.
-format_display() {
-  local ruler
-  ruler=$(printf '%*s\t%*s\t%*s\t%*s\t%*s\t%*s' \
-    "$COL_SES" "" "$COL_PANE" "" "$COL_STATUS" "" \
-    "$COL_AGE" "" "$COL_CPU" "" "$COL_MEM" "" | tr ' ' '_')
-  { echo "$ruler"; cat; } | column -t -s$'\t' | tail -n +2
-}
-
-# Build an indexed data file:
-#   line N = target<TAB>path
-# and a display list:
-#   line N = index<TAB>display columns
-# The index is a simple line number — never contains
-# user-controlled data, so it's safe in fzf fields.
-
-list_panes() {
-  local now ps_data
-  now=$(date +%s)
+# Collect raw pane data for deck_format.py.
+# Output format (tab-separated):
+#   target session win_idx win_name pane_idx
+#   path agent status cpu mem owner desc type
+collect_panes() {
+  local ps_data
   ps_data=$(ps -ax -o pid=,ppid=,rss=,%cpu=)
   tmux list-panes -a -F \
-    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_current_command}${SEP}#{pane_index}${SEP}#{pane_title}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{window_activity}${SEP}#{pane_pid}${SEP}#{@pilot-host}${SEP}#{@pilot-status}${SEP}#{@pilot-needs-help}" |
+    "#{session_name}:#{window_index}.#{pane_index}${SEP}#{session_name}${SEP}#{window_index}${SEP}#{window_name}${SEP}#{pane_index}${SEP}#{pane_current_path}${SEP}#{@pilot-workdir}${SEP}#{pane_pid}${SEP}#{@pilot-agent}${SEP}#{@pilot-status}${SEP}#{@pilot-needs-help}${SEP}#{@pilot-owner}${SEP}#{@pilot-desc}${SEP}#{@pilot-type}${SEP}#{@pilot-uuid}${SEP}#{window_activity}" |
   while IFS= read -r _line; do
-    # tmux <3.5 escapes 0x1F to literal \037 in format output; decode it
     _line="${_line//\\037/$SEP}"
-    IFS="$SEP" read -r target session win_idx win_name pane_cmd pane_idx title path workdir activity pane_pid pilot_host pilot_status pilot_needs_help <<< "$_line"
+    IFS="$SEP" read -r target session \
+      win_idx win_name pane_idx \
+      path workdir pane_pid \
+      agent status needs_help \
+      owner desc ptype self_uuid activity \
+      <<< "$_line"
     [[ -n "$workdir" ]] && path="$workdir"
-    local elapsed=$((now - activity))
-    local age
-    if [ "$elapsed" -lt 60 ]; then
-      age="active"
-    elif [ "$elapsed" -lt 3600 ]; then
-      age="$((elapsed / 60))m ago"
-    elif [ "$elapsed" -lt 86400 ]; then
-      age="$((elapsed / 3600))h ago"
-    else
-      age="$((elapsed / 86400))d ago"
+    if [[ -n "$needs_help" ]]; then
+      status="waiting"
     fi
-    # Append @host suffix when running on a remote host
-    if [[ -n "$pilot_host" ]]; then
-      session="${session}@${pilot_host}"
-    fi
-    [[ ${#session} -gt $COL_SES ]] && session="${session:0:$((COL_SES - 2))}.."
-    local pane_col="${win_name}:${win_idx}.${pane_idx}"
-    [[ ${#pane_col} -gt $COL_PANE ]] && pane_col="${pane_col:0:$((COL_PANE - 2))}.."
-    local status
-    if [[ -n "$pilot_needs_help" ]]; then
-      status=$(status_icon "waiting")
-    elif [[ -n "$pilot_status" ]]; then
-      status=$(status_icon "$pilot_status")
-    else
-      status=" "
+    # Resolve owner to UUID (cross-machine ID)
+    local owner_uuid=""
+    if [[ -n "$owner" ]]; then
+      owner_uuid=$(command tmux display-message \
+        -t "$owner" -p '#{@pilot-uuid}' \
+        2>/dev/null) || owner_uuid=""
     fi
     local mem cpu
-    mem=$(pane_tree_mem "$pane_pid" <<< "$ps_data")
-    cpu=$(pane_tree_cpu "$pane_pid" <<< "$ps_data")
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$activity" "$target" "$path" \
-      "$session" "$pane_col" "$status" "$age" "$cpu" "$mem"
+    mem=$(pane_tree_mem "$pane_pid" \
+      <<< "$ps_data")
+    cpu=$(pane_tree_cpu "$pane_pid" \
+      <<< "$ps_data")
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$target" "$session" "$win_idx" \
+      "$win_name" "$pane_idx" "$path" \
+      "$agent" "$status" "$cpu" "$mem" \
+      "$owner_uuid" "$desc" "$ptype" "" \
+      "$self_uuid" "$activity"
   done
+}
+
+# Collect panes from a remote tmux via SSH.
+# Uses ||| as delimiter (unit separator doesn't
+# survive SSH quoting). Converts to tabs for
+# parsing. Outputs same format as collect_panes
+# with empty CPU/MEM.
+collect_remote_panes() {
+  local host="$1"
+  local D="@@@"
+  local output
+  output=$(ssh \
+    -o ConnectTimeout=2 \
+    -o BatchMode=yes \
+    "$host" \
+    "tmux list-panes -a -F '#{session_name}${D}#{window_index}${D}#{window_name}${D}#{pane_index}${D}#{pane_current_path}${D}#{@pilot-agent}${D}#{@pilot-status}${D}#{@pilot-desc}${D}#{@pilot-type}${D}#{@pilot-owner-uuid}${D}#{@pilot-uuid}'" \
+    2>/dev/null) || return 0
+  # Reformat with awk (preserves empty fields).
+  # awk preserves empty fields (unlike bash read).
+  echo "$output" | awk -F'@@@' -v h="$host" \
+    'NF>0 {
+      ses=$1; wi=$2; wn=$3; pi=$4; pa=$5
+      ag=$6; st=$7; de=$8; pt=$9; ou=$10; su=$11
+      tgt=ses":"wi"."pi
+      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t\t%s\t%s\t%s\t%s\t%s\t\n", \
+        tgt, ses, wi, wn, pi, pa, \
+        ag, st, ou, de, pt, h, su
+    }'
 }
 
 PILOT_DATA=$(mktemp)
 trap 'rm -f "$PILOT_DATA"' EXIT
 
-# Build indexed data file and display list.
-# Usage: build_data [data_file]
-# Writes target<TAB>path to data_file (defaults to $PILOT_DATA).
+# Build indexed data + display via Python
+# formatter. Handles sorting, grouping, dimming,
+# column alignment, and emoji width.
 build_data() {
   local data_file="${1:-$PILOT_DATA}"
-  local tmpfile sorted
-  tmpfile=$(mktemp)
-  sorted=$(mktemp)
-
-  list_panes > "$tmpfile"
-  sort -t$'\t' -k1,1 -rn "$tmpfile" > "$sorted"
-  rm -f "$tmpfile"
-
-  # Data file: target<TAB>path (one per line, indexed)
-  cut -d$'\t' -f2,3 "$sorted" > "$data_file"
-
-  # Display: index<TAB>visible columns
-  local idx=1
-  cut -d$'\t' -f4- "$sorted" | format_display |
-  while IFS= read -r display_line; do
-    printf '%s\t%s\n' "$idx" "$display_line"
-    idx=$((idx + 1))
-  done
-
-  rm -f "$sorted"
+  {
+    collect_panes
+    # Remote panes (sequential)
+    local hosts
+    hosts=$(cached_hosts 2>/dev/null) || hosts=""
+    for h in $hosts; do
+      collect_remote_panes "$h" || true
+    done
+  } | python3 \
+    "$CURRENT_DIR/deck_format.py" \
+    --data-file "$data_file" \
+    --col-pane 26 --col-type 14
 }
 
 # --list mode for reload: rebuild data + display
@@ -220,6 +164,8 @@ fi
 CURRENT_TARGET=$(tmux show-environment -g PILOT_DECK_ORIGIN 2>/dev/null | sed 's/^[^=]*=//')
 
 # Lookup target and path from data file by index
+# Data file format: target<TAB>path<TAB>host
+# Host is empty for local panes.
 lookup() {
   local idx="$1" field="$2"
   if [[ ! "$idx" =~ ^[0-9]+$ ]]; then
@@ -227,9 +173,12 @@ lookup() {
   fi
   local line
   line=$(sed -n "${idx}p" "$PILOT_DATA")
+  local target path host
+  IFS=$'\t' read -r target path host <<< "$line"
   case "$field" in
-    target) printf '%s' "${line%%	*}" ;;
-    path)   printf '%s' "${line#*	}" ;;
+    target) printf '%s' "$target" ;;
+    path)   printf '%s' "$path" ;;
+    host)   printf '%s' "$host" ;;
   esac
 }
 
@@ -263,20 +212,23 @@ while true; do
 
   result=$(fzf --ansi --no-sort --layout=reverse \
       --delimiter '\t' --with-nth 2 \
-      --header "Enter=attach  Ctrl-e/y=scroll  Ctrl-d/u=page  Ctrl-w=wrap
+      --header "Enter=attach  Ctrl-r=refresh
 Alt-d=diff  Alt-s=commit  Alt-x=kill  Alt-l=log
-Alt-p=pause  Alt-r=resume  Alt-n=new  Alt-e=desc  Alt-y=approve
+Alt-p=pause  Alt-r=resume  Alt-n=new
+Alt-e=desc  Alt-y=approve  Alt-t=type  Alt-u=uuid
 $COL_SEP" \
       --header-lines=1 \
       --preview "$CURRENT_DIR/_preview.sh {1} $PILOT_DATA" \
       --preview-window=right:60%:follow:~10 \
-      --bind "ctrl-e:preview-down,ctrl-y:preview-up" \
-      --bind "ctrl-d:preview-half-page-down,ctrl-u:preview-half-page-up" \
+      --bind "ctrl-e:preview-down" \
+      --bind "ctrl-y:preview-up" \
+      --bind "ctrl-d:preview-half-page-down" \
+      --bind "ctrl-u:preview-half-page-up" \
       --bind "ctrl-w:change-preview-window(wrap|nowrap)" \
-      --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n,alt-e,alt-y,alt-l" \
+      --bind "ctrl-r:refresh-preview" \
+      --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n,alt-e,alt-y,alt-l,alt-t,alt-u" \
       "${fzf_start_bind[@]}" \
-    <<< "0	$COL_HEADER
-$display") || break  # esc / ctrl-c → exit
+    <<< "$display") || break  # esc / ctrl-c → exit
 
   # Parse: first line = key pressed, second line = selected
   key=$(head -1 <<< "$result")
@@ -286,7 +238,21 @@ $display") || break  # esc / ctrl-c → exit
   case "$key" in
     enter)
       target=$(lookup "$idx" target) || break
-      tmux switch-client -t "$target"
+      host=$(lookup "$idx" host) || true
+      if [[ -n "$host" ]]; then
+        # Remote: open SSH attach in new window
+        session="${target%%:*}"
+        win_name="${session}@${host}"
+        # Option C: exec into SSH attach.
+        # Replaces the deck process — the popup
+        # becomes the remote session. Detaching
+        # (Ctrl+B d or 'd' in remote) closes the
+        # popup and returns to where you were.
+        exec ssh "$host" -t \
+          "tmux attach -t $session"
+      else
+        tmux switch-client -t "$target"
+      fi
       break
       ;;
     alt-d)
@@ -338,6 +304,35 @@ $display") || break  # esc / ctrl-c → exit
       else
         echo "No watchdog log found"
         sleep 1
+      fi
+      ;;
+    alt-t)
+      target=$(lookup "$idx" target) || continue
+      printf '\n  Type: [s]hell  [a]gent  [d]aemon: '
+      read -rn1 choice
+      case "$choice" in
+        s) tmux set-option -p -t "$target" \
+             @pilot-type shell ;;
+        a) tmux set-option -p -t "$target" \
+             @pilot-type agent ;;
+        d) tmux set-option -p -t "$target" \
+             @pilot-type daemon ;;
+      esac
+      display=$(build_data)
+      ;;
+    alt-u)
+      target=$(lookup "$idx" target) || continue
+      uuid=$(tmux display-message -t "$target" \
+        -p '#{@pilot-uuid}' 2>/dev/null) || uuid=""
+      if [[ -n "$uuid" ]]; then
+        printf '%s' "$uuid" | pbcopy 2>/dev/null \
+          || printf '%s' "$uuid" \
+            | xclip -sel clip 2>/dev/null \
+          || printf '%s' "$uuid" \
+            | xsel --clipboard 2>/dev/null \
+          || true
+        printf '\n  Copied: %s\n' "$uuid"
+        sleep 0.5
       fi
       ;;
     *)

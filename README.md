@@ -21,63 +21,69 @@ Each agent gets its own tmux session. The session name is derived from the promp
 
 ### Agent deck (`prefix+e`)
 
-An fzf-based popup listing all panes across all sessions, sorted by most recent activity, with a live preview of each pane's output. Column widths adapt dynamically to the terminal size.
+An fzf-based popup listing all panes (local and remote) with type, status, CPU, and memory. Sorted alphabetically by session with owner-based grouping. Repeated session and agent names are dimmed for readability.
 
-Columns: **Session:Index** | **Cmd.Pane** | **Status** | **Age** | **CPU** | **RAM**
+Columns: **Pane** | **Type** | **Status** | **CPU** | **MEM**
 
-CPU and RAM are computed per pane by summing the entire process tree (shell + agent + child processes), so you can spot runaway agents at a glance. Status icons show at a glance which agents need attention (see [Status enum](#status-enum)).
+- **Pane**: session name, with window/pane index for multi-pane sessions
+- **Type**: icon + agent name (`🤖 claude`, `⚙ daemon`, `$` shell)
+- **Status**: merged from `@pilot-status` (if set by external tools) or output-age heuristic
+- **CPU/MEM**: summed across the entire process tree per pane
+
+Orchestrator panes are marked with `★`, peer orchestrators with `★⇄`. Panes owned by an orchestrator are grouped under that orchestrator's section. Remote panes (fetched via SSH) appear in a separate host section.
 
 Example:
 
 ```
-┌──────────────────────────────────────────────┬──────────────────────────────────────────────┐
-│ Enter=attach  Ctrl-e/y=scroll                │ PANE:    cld-fix-login:0.0  active           │
-│ Ctrl-d/u=page  Ctrl-w=wrap  Alt-l=log        │ TITLE:   * fix-login-flow                    │
-│ Alt-d=diff  Alt-s=commit  Alt-x=kill         │ WINDOW:  claude                              │
-│ Alt-p=pause  Alt-r=resume  Alt-y=approve     │ DESC:    Fix OAuth callback handling #42     │
-│ Alt-n=new  Alt-e=desc  Alt-y=approve         │ STATUS:  ▶️ working                           │
-│                                              │ WORKDIR: ~/projects/myapp                    │
-│ ─────────────────────────────────────────    │ CMD:     claude  uptime:31m                  │
-│ SESSION           CMD      STAT AGE  CPU MEM │ VCS:     git:fix-login (+2 ~1) ↑1            │
-│▌cld-fix-login:0   claude.0 ▶️   act  31% 2.1G│ ──────────────┤ PREVIEW ├───────────────────  │
-│ gem-refactor-au:0 gemini.0 ▶️   3m   5%  826M│ I'll fix the OAuth callback handling.        │
-│ aider-docs:0      aider.0  ✅   8m   0%  412M│ Let me look at the auth module first...      │
-│ cld-issue-42:0    claude.0 ✋   15m  0%  1.3G│                                              │
-│ app:0             zsh.0         2h   0%  106M│ $ git diff src/auth/callback.ts              │
-│                                              │ + if (!state) return redirect('/login')       │
-│                                              │ - if (!state) throw new Error('missing')      │
-│                                              │                                              │
-│                                              │ Fixed. Running tests now...                  │
-│                                              │ $ npm test                                   │
-│                                              │ PASS  src/auth/callback.test.ts (3 tests)    │
-└──────────────────────────────────────────────┴──────────────────────────────────────────────┘
+PANE                  TYPE           ST  CPU   MEM
+──────────────────────────────────────────────────
+api-server            🤖 claude      ▶   5%  1.2G
+frontend              🤖 vibe        ·   0%  236M
+shell                  $                 0%   62M
+
+── my-orch (2 agents) ────────────────────────
+my-orch           ★   🤖 claude      ▶   1%  800M
+my-orch.1              $             ▶   0%   90M
+task-42               🤖 gemini      ⧖  45%  512M
+task-99               🤖 vibe        !  23%  348M
+
+── server01 ──────────────────────────────────
+ci-runner@server01    🤖 gemini      ⧖
+worker@server01       🤖 vibe        !
 ```
 
 | Key | Action |
 |-----|--------|
-| `Enter` | Attach to selected pane |
+| `Enter` | Attach to pane (SSH for remote) |
+| `Ctrl+R` | Refresh preview |
 | `Ctrl+E` / `Ctrl+Y` | Scroll preview (line) |
 | `Ctrl+D` / `Ctrl+U` | Scroll preview (half-page) |
 | `Ctrl+W` | Toggle line wrap in preview |
-| `Alt+D` | Git diff popup for that pane's directory |
-| `Alt+S` | Commit + push worktree (WIP commit) |
-| `Alt+X` | Kill pane + cleanup worktree (permanent, cannot resume) |
-| `Alt+P` | Pause agent (sends `/exit`, keeps pane alive for resume) |
-| `Alt+R` | Resume agent (sends `claude --continue`, only works after pause) |
+| `Alt+D` | Git diff popup |
+| `Alt+S` | Commit + push worktree |
+| `Alt+X` | Kill pane + cleanup worktree |
+| `Alt+P` | Pause agent (sends `Escape`) |
+| `Alt+R` | Resume agent (sends `resume`) |
 | `Alt+N` | Launch new agent |
 | `Alt+E` | Edit session description |
-| `Alt+Y` | Approve (send Enter to selected pane) |
-| `Alt+L` | View watchdog log |
+| `Alt+Y` | Approve (send Enter to pane) |
+| `Alt+T` | Change pane type (shell/agent/daemon) |
+| `Alt+U` | Copy pane UUID to clipboard |
+| `Alt+L` | View log |
 | `Esc` | Close deck |
 
-The preview panel (right side, 60%) shows metadata for the selected pane:
+The preview panel (right side, 60%) shows metadata:
 
-- **PANE** — target, window name, last activity
-- **TITLE** — pane title (set by the agent)
-- **DESC** — session description (auto-set from prompt, or manually via `@pilot-desc`)
-- **WORKDIR** — working directory (full path, wraps if long)
-- **CMD** — running command and uptime
-- **VCS** — branch, dirty status (+staged ~modified ?untracked), ahead/behind remote (↑↓)
+- **SES/WIN/PANE/UUID** — session, window, pane index, pane ID, UUID
+- **CMD** — running command with runtime (e.g. `vibe (Python)`), agent name if different
+- **DESC** — task description (auto-set from prompt)
+- **STATUS** — merged status with owner and tier
+- **PID/CPU/MEM/UP** — process info
+- **ISSUE/TRUST** — task metadata
+- **HOST/MODE** — remote host and execution mode
+- **WORKDIR/VCS** — working directory and git status
+
+All fields are shown only when set — empty fields are hidden.
 
 ### VCS status (`prefix+d`)
 
@@ -188,33 +194,44 @@ tmux-pilot will display in the deck.
 
 | Variable | Set by | Read by | Values |
 |----------|--------|---------|--------|
-| `@pilot-agent` | spawn.sh | deck, monitor | claude, gemini, ... |
+| `@pilot-uuid` | pilot.tmux (auto) | deck, spawn | Unique pane identifier (12-char hex) |
+| `@pilot-agent` | spawn.sh, auto-detect | deck, monitor | claude, gemini, vibe, ... |
 | `@pilot-desc` | spawn.sh, agent | deck | Task description |
 | `@pilot-workdir` | agent hook | deck, kill.sh | Current dir |
 | `@pilot-status` | external tool, deck | deck | Status enum (see below) |
-| `@pilot-owner` | spawn.sh (MCP) | deck, transfer_ownership | Orchestrator session name that spawned this agent |
+| `@pilot-type` | spawn.sh, Alt+T | deck | shell, agent, daemon |
+| `@pilot-owner` | spawn.sh (MCP) | deck | Pane ID of the orchestrator |
+| `@pilot-owner-uuid` | spawn.sh (remote) | deck | UUID of the owner (cross-machine) |
+| `@pilot-issue` | spawn.sh (MCP) | deck | Issue number |
+| `@pilot-tier` | spawn.sh (MCP) | deck | Tier label |
+| `@pilot-trust` | spawn.sh (MCP) | deck | Trust level |
 | `@pilot-needs-help` | external tool | deck | "" or description |
-| `@pilot-review-target` | orchestrator | external tool | Pane target for review notifications |
-| `@pilot-review-context` | orchestrator | external tool | Task-specific review hints for the worker |
+| `@pilot-review-target` | orchestrator | external tool | Pane target for reviews |
+| `@pilot-review-context` | orchestrator | external tool | Task-specific review hints |
+| `@pilot-worktree` | spawn.sh (MCP) | deck | Worktree path |
+| `@pilot-repo` | spawn.sh (MCP) | deck | Repo root path |
+
+`@pilot-uuid` is assigned automatically to every pane on tmux startup and when new panes are created. It provides a stable identity that survives pane reordering (unlike `%NNN` pane IDs which tmux can reassign).
 
 ### Status enum
 
 `@pilot-status` accepts a fixed set of values. The deck renders each as an emoji icon in the list and shows the raw value in the preview panel.
 
-| Value | Emoji | ASCII | Meaning |
-|-------|-------|-------|---------|
-| `working` | ▶️ | `●` green | Agent is actively running |
-| `watching` | 👀 | `◉` blue | Watchdog is monitoring this pane |
-| `waiting` | ✋ | `⚠` yellow | Needs human attention |
-| `paused` | ⏸️ | `‖` gray | Intentionally suspended (via pause) |
-| `done` | ✅ | `✔` green | Task completed |
-| *(empty)* | | | No status — non-agent pane or untracked |
+| Value | Icon | Meaning |
+|-------|------|---------|
+| `working` | `▶` | Agent is actively running |
+| `watching` | `▶` | Being monitored |
+| `waiting` | `!` | Needs human attention |
+| `paused` | `‖` | Suspended (via pause) |
+| `done` | `✓` | Task completed |
+| `stuck` | `!` | Agent is stuck |
+| *(empty)* | `·` | Idle, or derived from output age |
 
-Unknown values are rendered as a blank space. Set `@pilot-status-ascii "1"` in your `tmux.conf` to use BMP symbols with ANSI colors instead of emojis.
+When `@pilot-status` is not set, the deck uses a heuristic based on the pane's last output time: recent output (`< 60s`) shows `▶`, older shows `·`. This ensures meaningful status for panes not managed by external tools.
 
-External tools (watchdog daemons, orchestrators) write `@pilot-status` to communicate agent state. The deck also sets it automatically on pause (`paused`) and resume (`working`).
+External tools (monitoring daemons, orchestrators) write `@pilot-status` to communicate agent state. The deck sets it on pause (`paused`) and resume (`working`).
 
-When `@pilot-needs-help` is set, the deck displays the `waiting` icon regardless of `@pilot-status`, and the preview shows the help description.
+When `@pilot-needs-help` is set, `!` is shown regardless of `@pilot-status`.
 
 ```bash
 # Examples

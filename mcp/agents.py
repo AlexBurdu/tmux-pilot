@@ -36,6 +36,7 @@ class AgentInfo:
     cpu: str = ""
     memory: str = ""
     session: str = ""
+    pane_id: str = ""
 
 
 def _run(
@@ -175,7 +176,7 @@ def parse_pane_lines(
         if len(parts) < 7:
             continue
         # Pad to expected field count
-        while len(parts) < 19:
+        while len(parts) < 21:
             parts.append("")
         (
             target, agent, desc, workdir, path,
@@ -183,8 +184,8 @@ def parse_pane_lines(
             pstatus, powner, ptier, ptrust,
             preview_target, preview_context,
             pissue, pworktree, prepo,
-            session,
-        ) = parts[:19]
+            session, pane_id,
+        ) = parts[:21]
 
         directory = workdir if workdir else path
 
@@ -210,6 +211,7 @@ def parse_pane_lines(
 
         agents.append(AgentInfo(
             target=target,
+            pane_id=pane_id,
             agent=agent or "",
             desc=desc,
             workdir=directory,
@@ -239,7 +241,8 @@ def parse_pane_lines(
 # Consumers can use this directly or call
 # list_agent_panes() which handles everything.
 PANE_FORMAT_FIELDS = [
-    "#{session_name}:#{window_index}.#{pane_index}",
+    "#{session_name}:#{window_index}"
+    ".#{pane_index}",
     "#{@pilot-agent}",
     "#{@pilot-desc}",
     "#{@pilot-workdir}",
@@ -258,6 +261,7 @@ PANE_FORMAT_FIELDS = [
     "#{@pilot-worktree}",
     "#{@pilot-repo}",
     "#{session_name}",
+    "#{pane_id}",
 ]
 
 

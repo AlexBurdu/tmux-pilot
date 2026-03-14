@@ -152,6 +152,20 @@ if [[ "$mode" == "remote-tmux" ]]; then
   owner_cmd=""
   if [[ -n "$owner" ]]; then
     owner_cmd=" && tmux set-option -p -t '$session_name' @pilot-owner '$owner'"
+    # Get or create a UUID for the owner pane.
+    # This is the cross-machine identifier.
+    local owner_uuid
+    owner_uuid=$(tmux display-message \
+      -t "$owner" \
+      -p '#{@pilot-uuid}' 2>/dev/null) \
+      || owner_uuid=""
+    if [[ -z "$owner_uuid" ]]; then
+      owner_uuid=$(uuidgen | tr '[:upper:]' \
+        '[:lower:]' | cut -c1-12)
+      tmux set-option -p -t "$owner" \
+        @pilot-uuid "$owner_uuid" 2>/dev/null
+    fi
+    owner_cmd+=" && tmux set-option -p -t '$session_name' @pilot-owner-uuid '$owner_uuid'"
   fi
   tier_cmd=""
   if [[ -n "$tier" ]]; then

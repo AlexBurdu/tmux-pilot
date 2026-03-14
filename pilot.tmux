@@ -50,3 +50,39 @@ tmux bind-key "$key_vcs" display-popup \
 if [ -n "$key_dash" ] && [ -n "$dash_cmd" ]; then
   tmux bind-key "$key_dash" run-shell "$dash_cmd"
 fi
+
+# Assign UUIDs to all panes that don't have one.
+# Runs on startup and via hook on new panes.
+assign_oid='
+  target="#{session_name}:#{window_index}.#{pane_index}"
+  oid=$(tmux display-message -t "$target" \
+    -p "#{@pilot-uuid}" 2>/dev/null)
+  if [ -z "$oid" ]; then
+    oid=$(uuidgen | tr "[:upper:]" "[:lower:]" \
+      | cut -c1-12)
+    tmux set-option -p -t "$target" \
+      @pilot-uuid "$oid" 2>/dev/null
+  fi
+'
+
+# Assign to all existing panes
+tmux list-panes -a -F \
+  '#{session_name}:#{window_index}.#{pane_index}' |
+while read -r t; do
+  oid=$(tmux display-message -t "$t" \
+    -p '#{@pilot-uuid}' 2>/dev/null) || oid=""
+  if [ -z "$oid" ]; then
+    oid=$(uuidgen | tr '[:upper:]' '[:lower:]' \
+      | cut -c1-12)
+    tmux set-option -p -t "$t" \
+      @pilot-uuid "$oid" 2>/dev/null || true
+  fi
+done
+
+# Auto-assign on new pane creation
+tmux set-hook -g after-split-window \
+  "run-shell '$assign_oid'"
+tmux set-hook -g after-new-window \
+  "run-shell '$assign_oid'"
+tmux set-hook -g after-new-session \
+  "run-shell '$assign_oid'"
