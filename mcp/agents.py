@@ -37,6 +37,7 @@ class AgentInfo:
     memory: str = ""
     session: str = ""
     pane_id: str = ""
+    uuid: str = ""
 
 
 def _run(
@@ -184,8 +185,9 @@ def parse_pane_lines(
             pstatus, powner, ptier, ptrust,
             preview_target, preview_context,
             pissue, pworktree, prepo,
+            puuid,
             session, pane_id,
-        ) = parts[:21]
+        ) = parts[:22]
 
         directory = workdir if workdir else path
 
@@ -229,6 +231,7 @@ def parse_pane_lines(
             issue=pissue,
             worktree=pworktree,
             repo=prepo,
+            uuid=puuid,
             cpu=cpu_str,
             memory=mem_str,
             session=session,
@@ -260,9 +263,43 @@ PANE_FORMAT_FIELDS = [
     "#{@pilot-issue}",
     "#{@pilot-worktree}",
     "#{@pilot-repo}",
+    "#{@pilot-uuid}",
     "#{session_name}",
     "#{pane_id}",
 ]
+
+
+def resolve_uuid(uuid: str) -> str:
+    """Resolve a UUID to a tmux pane target.
+    
+    Args:
+        uuid: The UUID to resolve (12-char hex string).
+    
+    Returns:
+        The tmux pane target (e.g., "session:window.pane").
+    
+    Raises:
+        ValueError: If the UUID is not found or tmux command fails.
+    """
+    sep = "\x1f"
+    fmt = f"#{{@pilot-uuid}} {sep} #{{session_name}}:#{{window_index}}.#{{pane_index}}"
+    
+    result = _run(["tmux", "list-panes", "-a", "-F", fmt])
+    if result.returncode != 0:
+        raise ValueError(f"tmux command failed: {result.stderr.strip()}")
+    
+    if not result.stdout.strip():
+        raise ValueError("No panes found")
+    
+    for line in result.stdout.strip().splitlines():
+        line = line.replace("\037", sep)
+        parts = line.split(sep)
+        if len(parts) >= 2:
+            pane_uuid, target = parts[0], parts[1]
+            if pane_uuid == uuid:
+                return target
+    
+    raise ValueError(f"UUID not found: {uuid}")
 
 
 def list_agent_panes() -> list[AgentInfo]:

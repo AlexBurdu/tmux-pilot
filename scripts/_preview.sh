@@ -115,26 +115,22 @@ pane_start=$(tmux display-message -t "$target" -p '#{pane_start_command}' 2>/dev
 desc=$(tmux display-message -t "$target" -p '#{@pilot-desc}' 2>/dev/null) || desc=""
 pilot_host=$(tmux display-message -t "$target" -p '#{@pilot-host}' 2>/dev/null) || pilot_host=""
 pilot_mode=$(tmux display-message -t "$target" -p '#{@pilot-mode}' 2>/dev/null) || pilot_mode=""
-# Resolve owner to "name (uuid)" format
+# Resolve owner UUID to "name (uuid)" format
 pilot_owner=""
-_raw_owner=$(tmux display-message -t "$target" \
+_owner_uuid=$(tmux display-message -t "$target" \
   -p '#{@pilot-owner}' 2>/dev/null) \
-  || _raw_owner=""
-if [[ -n "$_raw_owner" ]]; then
-  _owner_name=$(tmux display-message \
-    -t "$_raw_owner" \
-    -p '#{session_name}' 2>/dev/null) \
-    || _owner_name=""
-  _owner_uuid=$(tmux display-message \
-    -t "$_raw_owner" \
-    -p '#{@pilot-uuid}' 2>/dev/null) \
-    || _owner_uuid=""
-  if [[ -n "$_owner_name" && -n "$_owner_uuid" ]]; then
+  || _owner_uuid=""
+if [[ -n "$_owner_uuid" ]]; then
+  # Find pane with matching UUID
+  _owner_name=$(tmux list-panes -a \
+    -F '#{@pilot-uuid} #{session_name}' \
+    2>/dev/null \
+    | awk -v u="$_owner_uuid" \
+      '$1==u {print $2; exit}')
+  if [[ -n "$_owner_name" ]]; then
     pilot_owner="${_owner_name} (${_owner_uuid})"
-  elif [[ -n "$_owner_name" ]]; then
-    pilot_owner="$_owner_name"
   else
-    pilot_owner="$_raw_owner"
+    pilot_owner="$_owner_uuid"
   fi
 fi
 pilot_status=$(tmux display-message -t "$target" -p '#{@pilot-status}' 2>/dev/null) || pilot_status=""

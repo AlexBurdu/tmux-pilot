@@ -78,13 +78,8 @@ collect_panes() {
     if [[ -n "$needs_help" ]]; then
       status="waiting"
     fi
-    # Resolve owner to UUID (cross-machine ID)
-    local owner_uuid=""
-    if [[ -n "$owner" ]]; then
-      owner_uuid=$(command tmux display-message \
-        -t "$owner" -p '#{@pilot-uuid}' \
-        2>/dev/null) || owner_uuid=""
-    fi
+    # @pilot-owner stores UUID directly
+    local owner_uuid="$owner"
     local mem cpu
     mem=$(pane_tree_mem "$pane_pid" \
       <<< "$ps_data")
@@ -112,7 +107,7 @@ collect_remote_panes() {
     -o ConnectTimeout=2 \
     -o BatchMode=yes \
     "$host" \
-    "tmux list-panes -a -F '#{session_name}${D}#{window_index}${D}#{window_name}${D}#{pane_index}${D}#{pane_current_path}${D}#{@pilot-agent}${D}#{@pilot-status}${D}#{@pilot-desc}${D}#{@pilot-type}${D}#{@pilot-owner-uuid}${D}#{@pilot-uuid}'" \
+    "tmux list-panes -a -F '#{session_name}${D}#{window_index}${D}#{window_name}${D}#{pane_index}${D}#{pane_current_path}${D}#{@pilot-agent}${D}#{@pilot-status}${D}#{@pilot-desc}${D}#{@pilot-type}${D}#{@pilot-owner}${D}#{@pilot-uuid}'" \
     2>/dev/null) || return 0
   # Reformat with awk (preserves empty fields).
   # awk preserves empty fields (unlike bash read).

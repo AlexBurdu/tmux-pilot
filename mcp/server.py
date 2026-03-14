@@ -203,6 +203,9 @@ def list_agents() -> str:
         pane_id_info = (
             f"  pane_id={a.pane_id}" if a.pane_id else ""
         )
+        uuid_info = (
+            f"  uuid={a.uuid}" if a.uuid else ""
+        )
         entry = (
             f"  {a.target}"
             f"  agent={a.agent or '?'}"
@@ -212,6 +215,7 @@ def list_agents() -> str:
             f"  cpu={a.cpu}"
             f"  mem={a.memory}"
             f"{pane_id_info}"
+            f"{uuid_info}"
             f"{host_info}"
             f"{issue_info}"
             f"{status_info}"
@@ -235,12 +239,20 @@ def list_agents() -> str:
 # pause_agent
 # ---------------------------------------------------------------------------
 @mcp.tool()
-def pause_agent(target: str) -> str:
+def pause_agent(target: str | None = None, uuid: str | None = None) -> str:
     """Gracefully pause a running agent (sends the agent's quit command, keeps the pane alive for resume).
 
     Args:
         target: tmux pane target (e.g. "my-session:0.0").
+        uuid: Optional UUID to resolve to target if target is not provided.
     """
+    if not target and uuid:
+        try:
+            from agents import resolve_uuid
+            target = resolve_uuid(uuid)
+        except ValueError as e:
+            return f"Error: {str(e)}"
+    
     if err := _validate_target(target):
         return f"Error: {err}"
     cmd = [
@@ -258,12 +270,20 @@ def pause_agent(target: str) -> str:
 # resume_agent
 # ---------------------------------------------------------------------------
 @mcp.tool()
-def resume_agent(target: str) -> str:
+def resume_agent(target: str | None = None, uuid: str | None = None) -> str:
     """Resume a previously paused agent.
 
     Args:
         target: tmux pane target (e.g. "my-session:0.0").
+        uuid: Optional UUID to resolve to target if target is not provided.
     """
+    if not target and uuid:
+        try:
+            from agents import resolve_uuid
+            target = resolve_uuid(uuid)
+        except ValueError as e:
+            return f"Error: {str(e)}"
+    
     if err := _validate_target(target):
         return f"Error: {err}"
     cmd = [
@@ -281,12 +301,20 @@ def resume_agent(target: str) -> str:
 # kill_agent
 # ---------------------------------------------------------------------------
 @mcp.tool()
-def kill_agent(target: str) -> str:
+def kill_agent(target: str | None = None, uuid: str | None = None) -> str:
     """Kill an agent session and clean up its worktree.
 
     Args:
         target: tmux pane target (e.g. "my-session:0.0").
+        uuid: Optional UUID to resolve to target if target is not provided.
     """
+    if not target and uuid:
+        try:
+            from agents import resolve_uuid
+            target = resolve_uuid(uuid)
+        except ValueError as e:
+            return f"Error: {str(e)}"
+    
     if err := _validate_target(target):
         return f"Error: {err}"
     # Get working directory for worktree cleanup
@@ -318,13 +346,21 @@ def kill_agent(target: str) -> str:
 # capture_pane
 # ---------------------------------------------------------------------------
 @mcp.tool()
-def capture_pane(target: str, lines: int = 20) -> str:
+def capture_pane(target: str | None = None, lines: int = 20, uuid: str | None = None) -> str:
     """Capture terminal text content from a tmux pane.
 
     Args:
         target: tmux pane target (e.g. "my-session:0.0").
         lines: Number of lines to capture from bottom (default 20).
+        uuid: Optional UUID to resolve to target if target is not provided.
     """
+    if not target and uuid:
+        try:
+            from agents import resolve_uuid
+            target = resolve_uuid(uuid)
+        except ValueError as e:
+            return f"Error: {str(e)}"
+    
     if err := _validate_target(target):
         return f"Error: {err}"
     if lines < 1:
@@ -339,7 +375,7 @@ def capture_pane(target: str, lines: int = 20) -> str:
 # send_keys
 # ---------------------------------------------------------------------------
 @mcp.tool()
-def send_keys(target: str, keys: str) -> str:
+def send_keys(keys: str, target: str | None = None, uuid: str | None = None) -> str:
     """Send text or key names to a tmux pane.
 
     For multi-line text, uses load-buffer + paste-buffer to write directly to
@@ -349,7 +385,15 @@ def send_keys(target: str, keys: str) -> str:
     Args:
         target: tmux pane target (e.g. "my-session:0.0").
         keys: Text or key names to send (e.g. "Enter", "BTab", "C-c", or arbitrary text).
+        uuid: Optional UUID to resolve to target if target is not provided.
     """
+    if not target and uuid:
+        try:
+            from agents import resolve_uuid
+            target = resolve_uuid(uuid)
+        except ValueError as e:
+            return f"Error: {str(e)}"
+    
     if err := _validate_target(target):
         return f"Error: {err}"
     if not keys:
@@ -498,6 +542,7 @@ def run_command_silent(
     command: str,
     directory: str,
     timeout_minutes: int = 15,
+    uuid: str | None = None,
 ) -> str:
     """Run a command silently, return exit code and tail of output. Full output saved to a log file.
 
@@ -508,6 +553,7 @@ def run_command_silent(
         command: Shell command to execute.
         directory: Working directory for the command.
         timeout_minutes: Max execution time (default 15).
+        uuid: Optional UUID (not used in this tool, kept for consistency).
     """
     log_file = f"/tmp/pilot-cmd-{uuid.uuid4()}.log"
     try:

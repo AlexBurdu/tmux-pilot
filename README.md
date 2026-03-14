@@ -200,8 +200,7 @@ tmux-pilot will display in the deck.
 | `@pilot-workdir` | agent hook | deck, kill.sh | Current dir |
 | `@pilot-status` | external tool, deck | deck | Status enum (see below) |
 | `@pilot-type` | spawn.sh, Alt+T | deck | shell, agent, daemon |
-| `@pilot-owner` | spawn.sh (MCP) | deck | Pane ID of the orchestrator |
-| `@pilot-owner-uuid` | spawn.sh (remote) | deck | UUID of the owner (cross-machine) |
+| `@pilot-owner` | spawn.sh (MCP) | deck, watchdog | UUID of the orchestrator that owns this agent |
 | `@pilot-issue` | spawn.sh (MCP) | deck | Issue number |
 | `@pilot-tier` | spawn.sh (MCP) | deck | Tier label |
 | `@pilot-trust` | spawn.sh (MCP) | deck | Trust level |

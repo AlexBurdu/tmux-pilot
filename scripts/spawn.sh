@@ -149,11 +149,11 @@ desc=$(tr '\n' ' ' <<< "${prompt:0:80}")
 
 if [[ "$mode" == "remote-tmux" ]]; then
   # Fully remote: create a tmux session on the remote host via SSH
+  # Store owner as UUID (not pane ID). The UUID
+  # is stable across pane reordering and works
+  # cross-machine.
   owner_cmd=""
   if [[ -n "$owner" ]]; then
-    owner_cmd=" && tmux set-option -p -t '$session_name' @pilot-owner '$owner'"
-    # Get or create a UUID for the owner pane.
-    # This is the cross-machine identifier.
     local owner_uuid
     owner_uuid=$(tmux display-message \
       -t "$owner" \
@@ -165,7 +165,7 @@ if [[ "$mode" == "remote-tmux" ]]; then
       tmux set-option -p -t "$owner" \
         @pilot-uuid "$owner_uuid" 2>/dev/null
     fi
-    owner_cmd+=" && tmux set-option -p -t '$session_name' @pilot-owner-uuid '$owner_uuid'"
+    owner_cmd=" && tmux set-option -p -t '$session_name' @pilot-owner '$owner_uuid'"
   fi
   tier_cmd=""
   if [[ -n "$tier" ]]; then
@@ -209,15 +209,18 @@ elif [[ "$mode" == "local-ssh" ]]; then
   tmux set-option -p -t "$session_name" @pilot-agent "$agent"
   tmux set-option -p -t "$session_name" @pilot-host "$host"
   tmux set-option -p -t "$session_name" @pilot-mode "$mode"
-  [[ -n "$owner" ]] && {
-    tmux set-option -p -t "$session_name" \
-      @pilot-owner "$owner"
+  if [[ -n "$owner" ]]; then
     _ouuid=$(tmux display-message -t "$owner" \
       -p '#{@pilot-uuid}' 2>/dev/null) || _ouuid=""
-    [[ -n "$_ouuid" ]] && \
-      tmux set-option -p -t "$session_name" \
-        @pilot-owner-uuid "$_ouuid"
-  }
+    if [[ -z "$_ouuid" ]]; then
+      _ouuid=$(uuidgen | tr '[:upper:]' \
+        '[:lower:]' | cut -c1-12)
+      tmux set-option -p -t "$owner" \
+        @pilot-uuid "$_ouuid" 2>/dev/null
+    fi
+    tmux set-option -p -t "$session_name" \
+      @pilot-owner "$_ouuid"
+  fi
   [[ -n "$tier" ]] && tmux set-option -p -t "$session_name" @pilot-tier "$tier"
   [[ -n "$trust" ]] && tmux set-option -p -t "$session_name" @pilot-trust "$trust"
   [[ -n "$review_target" ]] && tmux set-option -p -t "$session_name" @pilot-review-target "$review_target"
@@ -234,15 +237,18 @@ else
     "$path_prefix $tmux_cmd"
   tmux set-option -p -t "$session_name" @pilot-desc "$desc"
   tmux set-option -p -t "$session_name" @pilot-agent "$agent"
-  [[ -n "$owner" ]] && {
-    tmux set-option -p -t "$session_name" \
-      @pilot-owner "$owner"
+  if [[ -n "$owner" ]]; then
     _ouuid=$(tmux display-message -t "$owner" \
       -p '#{@pilot-uuid}' 2>/dev/null) || _ouuid=""
-    [[ -n "$_ouuid" ]] && \
-      tmux set-option -p -t "$session_name" \
-        @pilot-owner-uuid "$_ouuid"
-  }
+    if [[ -z "$_ouuid" ]]; then
+      _ouuid=$(uuidgen | tr '[:upper:]' \
+        '[:lower:]' | cut -c1-12)
+      tmux set-option -p -t "$owner" \
+        @pilot-uuid "$_ouuid" 2>/dev/null
+    fi
+    tmux set-option -p -t "$session_name" \
+      @pilot-owner "$_ouuid"
+  fi
   [[ -n "$tier" ]] && tmux set-option -p -t "$session_name" @pilot-tier "$tier"
   [[ -n "$trust" ]] && tmux set-option -p -t "$session_name" @pilot-trust "$trust"
   [[ -n "$review_target" ]] && tmux set-option -p -t "$session_name" @pilot-review-target "$review_target"
