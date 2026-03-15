@@ -155,15 +155,22 @@ if [[ "$mode" == "remote-tmux" ]]; then
   owner_cmd=""
   if [[ -n "$owner" ]]; then
     local owner_uuid
-    owner_uuid=$(tmux display-message \
-      -t "$owner" \
-      -p '#{@pilot-uuid}' 2>/dev/null) \
-      || owner_uuid=""
-    if [[ -z "$owner_uuid" ]]; then
-      owner_uuid=$(uuidgen | tr '[:upper:]' \
-        '[:lower:]' | cut -c1-12)
-      tmux set-option -p -t "$owner" \
-        @pilot-uuid "$owner_uuid" 2>/dev/null
+    # If owner is already a UUID (not a pane
+    # ID like %NNN), use it directly.
+    if [[ "$owner" =~ ^[0-9a-f-]+$ ]]; then
+      owner_uuid="$owner"
+    else
+      owner_uuid=$(tmux display-message \
+        -t "$owner" \
+        -p '#{@pilot-uuid}' 2>/dev/null) \
+        || owner_uuid=""
+      if [[ -z "$owner_uuid" ]]; then
+        owner_uuid=$(uuidgen | tr '[:upper:]' \
+          '[:lower:]' | cut -c1-12)
+        tmux set-option -p -t "$owner" \
+          @pilot-uuid "$owner_uuid" \
+          2>/dev/null
+      fi
     fi
     owner_cmd=" && tmux set-option -p -t '$session_name' @pilot-owner '$owner_uuid'"
   fi
@@ -210,13 +217,18 @@ elif [[ "$mode" == "local-ssh" ]]; then
   tmux set-option -p -t "$session_name" @pilot-host "$host"
   tmux set-option -p -t "$session_name" @pilot-mode "$mode"
   if [[ -n "$owner" ]]; then
-    _ouuid=$(tmux display-message -t "$owner" \
-      -p '#{@pilot-uuid}' 2>/dev/null) || _ouuid=""
-    if [[ -z "$_ouuid" ]]; then
-      _ouuid=$(uuidgen | tr '[:upper:]' \
-        '[:lower:]' | cut -c1-12)
-      tmux set-option -p -t "$owner" \
-        @pilot-uuid "$_ouuid" 2>/dev/null
+    if [[ "$owner" =~ ^[0-9a-f-]+$ ]]; then
+      _ouuid="$owner"
+    else
+      _ouuid=$(tmux display-message -t "$owner" \
+        -p '#{@pilot-uuid}' 2>/dev/null) \
+        || _ouuid=""
+      if [[ -z "$_ouuid" ]]; then
+        _ouuid=$(uuidgen | tr '[:upper:]' \
+          '[:lower:]' | cut -c1-12)
+        tmux set-option -p -t "$owner" \
+          @pilot-uuid "$_ouuid" 2>/dev/null
+      fi
     fi
     tmux set-option -p -t "$session_name" \
       @pilot-owner "$_ouuid"
@@ -238,13 +250,18 @@ else
   tmux set-option -p -t "$session_name" @pilot-desc "$desc"
   tmux set-option -p -t "$session_name" @pilot-agent "$agent"
   if [[ -n "$owner" ]]; then
-    _ouuid=$(tmux display-message -t "$owner" \
-      -p '#{@pilot-uuid}' 2>/dev/null) || _ouuid=""
-    if [[ -z "$_ouuid" ]]; then
-      _ouuid=$(uuidgen | tr '[:upper:]' \
-        '[:lower:]' | cut -c1-12)
-      tmux set-option -p -t "$owner" \
-        @pilot-uuid "$_ouuid" 2>/dev/null
+    if [[ "$owner" =~ ^[0-9a-f-]+$ ]]; then
+      _ouuid="$owner"
+    else
+      _ouuid=$(tmux display-message -t "$owner" \
+        -p '#{@pilot-uuid}' 2>/dev/null) \
+        || _ouuid=""
+      if [[ -z "$_ouuid" ]]; then
+        _ouuid=$(uuidgen | tr '[:upper:]' \
+          '[:lower:]' | cut -c1-12)
+        tmux set-option -p -t "$owner" \
+          @pilot-uuid "$_ouuid" 2>/dev/null
+      fi
     fi
     tmux set-option -p -t "$session_name" \
       @pilot-owner "$_ouuid"
