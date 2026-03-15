@@ -56,13 +56,24 @@ if [[ -n "$host" ]]; then
   meta="${remote_data%%${D}CAPTURE${D}*}"
   capture="${remote_data#*${D}CAPTURE${D}}"
 
-  # Parse metadata
-  IFS="$D" read -r r_window r_agent r_desc \
-    r_status r_tier r_trust r_owner \
-    r_uuid r_issue r_worktree r_repo \
-    r_review_target r_review_ctx \
-    r_cmd r_path \
-    <<< "$meta"
+  # Parse metadata. Can't use IFS="<~>" — bash
+  # treats each char as a separate delimiter.
+  # Use awk with multi-char field separator.
+  r_window=$(echo "$meta" | awk -F'<~>' '{print $1}')
+  r_agent=$(echo "$meta" | awk -F'<~>' '{print $2}')
+  r_desc=$(echo "$meta" | awk -F'<~>' '{print $3}')
+  r_status=$(echo "$meta" | awk -F'<~>' '{print $4}')
+  r_tier=$(echo "$meta" | awk -F'<~>' '{print $5}')
+  r_trust=$(echo "$meta" | awk -F'<~>' '{print $6}')
+  r_owner=$(echo "$meta" | awk -F'<~>' '{print $7}')
+  r_uuid=$(echo "$meta" | awk -F'<~>' '{print $8}')
+  r_issue=$(echo "$meta" | awk -F'<~>' '{print $9}')
+  r_worktree=$(echo "$meta" | awk -F'<~>' '{print $10}')
+  r_repo=$(echo "$meta" | awk -F'<~>' '{print $11}')
+  r_review_target=$(echo "$meta" | awk -F'<~>' '{print $12}')
+  r_review_ctx=$(echo "$meta" | awk -F'<~>' '{print $13}')
+  r_cmd=$(echo "$meta" | awk -F'<~>' '{print $14}')
+  r_path=$(echo "$meta" | awk -F'<~>' '{print $15}')
 
   # Display — same format as local panes
   printf "${B}SES:${R} %s │ ${B}WIN:${R} %s │ ${B}PANE:${R} %s │ ${B}UUID:${R} %s │ ${B}HOST:${R} %s\n" \
