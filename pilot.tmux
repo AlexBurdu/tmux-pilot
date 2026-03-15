@@ -46,9 +46,16 @@ tmux bind-key "$key_vcs" display-popup \
   -d '#{?@pilot-workdir,#{@pilot-workdir},#{pane_current_path}}' -E \
   "$CURRENT_DIR/scripts/vcs-status.sh"
 
-# User-configured dashboard keybinding
-if [ -n "$key_dash" ] && [ -n "$dash_cmd" ]; then
-  tmux bind-key "$key_dash" run-shell "$dash_cmd"
+# User-configured dashboard keybinding.
+# If dash_cmd is set, use it. Otherwise bind the
+# dashboard key to the same deck popup as key_deck.
+if [ -n "$key_dash" ]; then
+  if [ -n "$dash_cmd" ]; then
+    tmux bind-key "$key_dash" run-shell "$dash_cmd"
+  else
+    tmux bind-key "$key_dash" run-shell \
+      "tmux set-environment -g PILOT_DECK_ORIGIN '#{session_name}:#{window_index}.#{pane_index}'; tmux display-popup -w '$popup_deck_w' -h '$popup_deck_h' -y '##{e|+|:##{popup_centre_y},1}' -E '$CURRENT_DIR/scripts/deck.sh'"
+  fi
 fi
 
 # Assign UUIDs to all panes that don't have one.
