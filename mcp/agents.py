@@ -271,34 +271,36 @@ PANE_FORMAT_FIELDS = [
 
 def resolve_uuid(uuid: str) -> str:
     """Resolve a UUID to a tmux pane target.
-    
+
     Args:
-        uuid: The UUID to resolve (12-char hex string).
-    
+        uuid: The @pilot-uuid value (12-char hex).
+
     Returns:
-        The tmux pane target (e.g., "session:window.pane").
-    
+        Pane target (e.g. "session:0.0").
+
     Raises:
-        ValueError: If the UUID is not found or tmux command fails.
+        ValueError: If not found or tmux fails.
     """
-    sep = "\x1f"
-    fmt = f"#{{@pilot-uuid}} {sep} #{{session_name}}:#{{window_index}}.#{{pane_index}}"
-    
-    result = _run(["tmux", "list-panes", "-a", "-F", fmt])
+    fmt = (
+        "#{@pilot-uuid}\t"
+        "#{session_name}:"
+        "#{window_index}.#{pane_index}"
+    )
+    result = _run(
+        ["tmux", "list-panes", "-a", "-F", fmt]
+    )
     if result.returncode != 0:
-        raise ValueError(f"tmux command failed: {result.stderr.strip()}")
-    
+        raise ValueError(
+            f"tmux command failed: "
+            f"{result.stderr.strip()}"
+        )
     if not result.stdout.strip():
         raise ValueError("No panes found")
-    
     for line in result.stdout.strip().splitlines():
-        line = line.replace("\037", sep)
-        parts = line.split(sep)
+        parts = line.split("\t")
         if len(parts) >= 2:
-            pane_uuid, target = parts[0], parts[1]
-            if pane_uuid == uuid:
-                return target
-    
+            if parts[0] == uuid:
+                return parts[1]
     raise ValueError(f"UUID not found: {uuid}")
 
 

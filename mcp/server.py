@@ -9,11 +9,11 @@ import json
 import os
 import re
 import subprocess
-import uuid
+import uuid as _uuid_mod
 
 from fastmcp import FastMCP
 
-from agents import list_agent_panes
+from agents import list_agent_panes, resolve_uuid
 from monitor import (
     PaneReport,
     detect_events,
@@ -248,7 +248,6 @@ def pause_agent(target: str | None = None, uuid: str | None = None) -> str:
     """
     if not target and uuid:
         try:
-            from agents import resolve_uuid
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
@@ -279,7 +278,6 @@ def resume_agent(target: str | None = None, uuid: str | None = None) -> str:
     """
     if not target and uuid:
         try:
-            from agents import resolve_uuid
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
@@ -310,7 +308,6 @@ def kill_agent(target: str | None = None, uuid: str | None = None) -> str:
     """
     if not target and uuid:
         try:
-            from agents import resolve_uuid
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
@@ -356,7 +353,6 @@ def capture_pane(target: str | None = None, lines: int = 20, uuid: str | None = 
     """
     if not target and uuid:
         try:
-            from agents import resolve_uuid
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
@@ -389,7 +385,6 @@ def send_keys(keys: str, target: str | None = None, uuid: str | None = None) -> 
     """
     if not target and uuid:
         try:
-            from agents import resolve_uuid
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
@@ -556,7 +551,7 @@ def run_command_silent(
         timeout_minutes: Max execution time (default 15).
         uuid: Optional UUID (not used in this tool, kept for consistency).
     """
-    log_file = f"/tmp/pilot-cmd-{uuid.uuid4()}.log"
+    log_file = f"/tmp/pilot-cmd-{_uuid_mod.uuid4()}.log"
     try:
         with open(log_file, "w") as f:
             result = subprocess.run(
