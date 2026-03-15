@@ -403,12 +403,13 @@ def send_keys(keys: str, target: str | None = None, uuid: str | None = None) -> 
         # Single control/special key — send directly via send-keys.
         result = _run(["tmux", "send-keys", "-t", target, keys])
     else:
-        # Text payload — use unified logic from _keys.sh via bash.
-        # This handles the extra Enter + delay for vibe agents,
-        # while keeping the default 'no Enter' for other agents.
+        # Text payload — paste via load-buffer and
+        # send Enter to submit. Uses _keys.sh which
+        # handles agent-specific submit sequences
+        # (e.g. delay for Vibe TUI).
         cmd = [
             "bash", "-c",
-            'source "$1/_keys.sh" && send_text "$2" "$3" "1"',
+            'source "$1/_keys.sh" && send_text "$2" "$3"',
             "--", SCRIPTS_DIR, target, keys,
         ]
         result = _run(cmd)

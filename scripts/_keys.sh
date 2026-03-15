@@ -18,15 +18,25 @@ send_text() {
   local agent
   agent=$(tmux display-message -t "$target" -p '#{@pilot-agent}' 2>/dev/null)
 
-  # Vibe (Mistral) TUI requires a small delay to process the paste
-  # before the submit Enter key.
-  if [[ "$agent" == "vibe" ]]; then
-    sleep 0.1
-    tmux send-keys -t "$target" Enter
-    return
-  fi
+  # Agent-specific submit sequences.
+  case "$agent" in
+    vibe)
+      # Vibe TUI needs a delay before Enter.
+      sleep 0.1
+      tmux send-keys -t "$target" Enter
+      return
+      ;;
+    gemini)
+      # Gemini uses vim-like input: Escape to
+      # NORMAL mode, Enter to submit.
+      tmux send-keys -t "$target" Escape
+      sleep 0.05
+      tmux send-keys -t "$target" Enter
+      return
+      ;;
+  esac
 
-  # For other agents, send Enter unless requested otherwise.
+  # Default: send Enter unless suppressed.
   if [[ -z "$no_enter" ]]; then
     tmux send-keys -t "$target" Enter
   fi
