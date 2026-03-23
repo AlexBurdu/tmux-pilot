@@ -154,7 +154,7 @@ if [[ "$mode" == "remote-tmux" ]]; then
   # cross-machine.
   owner_cmd=""
   if [[ -n "$owner" ]]; then
-    local owner_uuid
+    owner_uuid=""
     # If owner is already a UUID (not a pane
     # ID like %NNN), use it directly.
     if [[ "$owner" =~ ^[0-9a-f-]+$ ]]; then
