@@ -348,25 +348,29 @@ def kill_agent(target: str | None = None, uuid: str | None = None) -> str:
 # capture_pane
 # ---------------------------------------------------------------------------
 @mcp.tool()
-def capture_pane(target: str | None = None, lines: int = 20, uuid: str | None = None) -> str:
+def capture_pane(target: str | None = None, lines: int = 20, uuid: str | None = None, ansi: bool = False) -> str:
     """Capture terminal text content from a tmux pane.
 
     Args:
         target: tmux pane target (e.g. "my-session:0.0").
         lines: Number of lines to capture from bottom (default 20).
         uuid: Optional UUID to resolve to target if target is not provided.
+        ansi: Preserve ANSI escape sequences (default False).
     """
     if not target and uuid:
         try:
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
-    
+
     if err := _validate_target(target):
         return f"Error: {err}"
     if lines < 1:
         return "Error: lines must be >= 1"
-    result = _run(["tmux", "capture-pane", "-t", target, "-p", "-S", f"-{lines}"])
+    cmd = ["tmux", "capture-pane", "-t", target, "-p", "-S", f"-{lines}"]
+    if ansi:
+        cmd.insert(3, "-e")
+    result = _run(cmd)
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
     return result.stdout
