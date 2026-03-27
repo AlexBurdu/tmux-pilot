@@ -38,27 +38,27 @@ def _load_listeners() -> None:
     """Load event listeners from config file."""
     global _listeners
     config_path = os.path.expanduser("~/.config/tmux-pilot/config.json")
-    
+
     if not os.path.exists(config_path):
         return
-    
+
     try:
         with open(config_path, "r") as f:
             config = json.load(f)
     except Exception as e:
         print(f"Error loading config: {e}", file=sys.stderr)
         return
-    
+
     listeners_config = config.get("listeners", [])
     if not isinstance(listeners_config, list):
         print("Error: listeners must be an array", file=sys.stderr)
         return
-    
+
     for module_path in listeners_config:
         if not isinstance(module_path, str):
             print(f"Error: listener must be a string, got {type(module_path)}", file=sys.stderr)
             continue
-        
+
         try:
             module = importlib.import_module(module_path)
             if not hasattr(module, "create_listener"):
@@ -107,11 +107,11 @@ def _emit(event: dict) -> None:
     """Emit an event to all registered listeners."""
     if not _listeners:
         return
-    
+
     # Add timestamp
     event_with_ts = event.copy()
     event_with_ts["ts"] = datetime.now(timezone.utc).isoformat()
-    
+
     # Call each listener
     for listener in _listeners:
         try:
@@ -214,7 +214,7 @@ def spawn_agent(
         return f"Error: {result.stderr.strip()}"
     name = result.stdout.strip()
     effective_mode = mode or ("local-ssh" if host else None)
-    
+
     # Emit spawn event
     _emit({
         "event": "spawn",
@@ -230,7 +230,7 @@ def spawn_agent(
         "worktree": worktree,
         "repo": repo
     })
-    
+
     if effective_mode == "remote-tmux":
         return (
             f"Remote session created: {name}\n"
@@ -335,7 +335,7 @@ def pause_agent(target: str | None = None, uuid: str | None = None) -> str:
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
-    
+
     if err := _validate_target(target):
         return f"Error: {err}"
     cmd = [
@@ -346,10 +346,10 @@ def pause_agent(target: str | None = None, uuid: str | None = None) -> str:
     result = _run(cmd)
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
-    
+
     # Emit pause event
     _emit({"event": "pause", "target": target})
-    
+
     return f"Paused {target}"
 
 
@@ -369,7 +369,7 @@ def resume_agent(target: str | None = None, uuid: str | None = None) -> str:
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
-    
+
     if err := _validate_target(target):
         return f"Error: {err}"
     cmd = [
@@ -380,10 +380,10 @@ def resume_agent(target: str | None = None, uuid: str | None = None) -> str:
     result = _run(cmd)
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
-    
+
     # Emit resume event
     _emit({"event": "resume", "target": target})
-    
+
     return f"Resumed {target}"
 
 
@@ -403,7 +403,7 @@ def kill_agent(target: str | None = None, uuid: str | None = None) -> str:
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
-    
+
     if err := _validate_target(target):
         return f"Error: {err}"
     # Get working directory for worktree cleanup
@@ -426,10 +426,10 @@ def kill_agent(target: str | None = None, uuid: str | None = None) -> str:
     result = _run([os.path.join(SCRIPTS_DIR, "kill.sh"), target, path])
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
-    
+
     # Emit kill event
     _emit({"event": "kill", "target": target})
-    
+
     output = result.stdout.strip()
     return output if output else f"Killed {target}"
 
@@ -451,7 +451,7 @@ def capture_pane(target: str | None = None, lines: int = 20, uuid: str | None = 
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
-    
+
     if err := _validate_target(target):
         return f"Error: {err}"
     if lines < 1:
@@ -483,7 +483,7 @@ def send_keys(keys: str, target: str | None = None, uuid: str | None = None) -> 
             target = resolve_uuid(uuid)
         except ValueError as e:
             return f"Error: {str(e)}"
-    
+
     if err := _validate_target(target):
         return f"Error: {err}"
     if not keys:
@@ -506,10 +506,10 @@ def send_keys(keys: str, target: str | None = None, uuid: str | None = None) -> 
 
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
-    
+
     # Emit send_keys event
     _emit({"event": "send_keys", "target": target, "keys": keys})
-    
+
     return f"Sent keys to {target}"
 
 
@@ -626,10 +626,10 @@ def transfer_ownership(old_owner: str, new_owner: str) -> str:
 
     if not updated:
         return f"No panes found with @pilot-owner={old_owner!r}"
-    
+
     # Emit transfer_ownership event
     _emit({"event": "transfer_ownership", "old_owner": old_owner, "new_owner": new_owner})
-    
+
     return f"Updated {len(updated)} pane(s): {', '.join(updated)}"
 
 
@@ -671,10 +671,10 @@ def run_command_silent(
             with open(log_file) as f:
                 lines = f.readlines()
                 tail = "".join(lines[-30:])
-        
+
         # Emit run_command event
         _emit({"event": "run_command", "command": command, "directory": directory})
-        
+
         return json.dumps({"exit_code": exit_code, "log_file": log_file, "tail": tail})
     except subprocess.TimeoutExpired:
         tail = f"TIMEOUT after {timeout_minutes}m"

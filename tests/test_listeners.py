@@ -28,7 +28,8 @@ class TestLoadListeners(unittest.TestCase):
 
     def test_no_config_file(self):
         """Test that _load_listeners works with no config file."""
-        server._load_listeners()
+        with patch('os.path.expanduser', return_value='/nonexistent/config.json'):
+            server._load_listeners()
         self.assertEqual(len(server._listeners), 0)
 
     def test_empty_listeners_array(self):
@@ -36,7 +37,7 @@ class TestLoadListeners(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump({"listeners": []}, f)
             config_path = f.name
-        
+
         try:
             with patch('os.path.expanduser', return_value=config_path):
                 server._load_listeners()
@@ -49,11 +50,11 @@ class TestLoadListeners(unittest.TestCase):
         # Create a mock module
         mock_module = MagicMock()
         mock_module.create_listener.return_value = lambda event: None
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump({"listeners": ["tests.mock_listener"]}, f)
             config_path = f.name
-        
+
         try:
             with patch('os.path.expanduser', return_value=config_path):
                 with patch('importlib.import_module', return_value=mock_module):
@@ -67,7 +68,7 @@ class TestLoadListeners(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump({"listeners": ["invalid.module.path"]}, f)
             config_path = f.name
-        
+
         try:
             with patch('os.path.expanduser', return_value=config_path):
                 with patch('importlib.import_module', side_effect=ImportError("Module not found")):
@@ -80,11 +81,11 @@ class TestLoadListeners(unittest.TestCase):
         """Test that _load_listeners handles modules without create_listener."""
         mock_module = MagicMock()
         del mock_module.create_listener
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump({"listeners": ["tests.mock_listener"]}, f)
             config_path = f.name
-        
+
         try:
             with patch('os.path.expanduser', return_value=config_path):
                 with patch('importlib.import_module', return_value=mock_module):
@@ -97,11 +98,11 @@ class TestLoadListeners(unittest.TestCase):
         """Test that _load_listeners handles create_listener returning non-callable."""
         mock_module = MagicMock()
         mock_module.create_listener.return_value = "not a function"
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump({"listeners": ["tests.mock_listener"]}, f)
             config_path = f.name
-        
+
         try:
             with patch('os.path.expanduser', return_value=config_path):
                 with patch('importlib.import_module', return_value=mock_module):
@@ -129,13 +130,13 @@ class TestEmit(unittest.TestCase):
         listener1 = MagicMock()
         listener2 = MagicMock()
         server._listeners = [listener1, listener2]
-        
+
         event = {"event": "test", "data": "value"}
         server._emit(event)
-        
+
         listener1.assert_called_once()
         listener2.assert_called_once()
-        
+
         # Check that timestamp was added
         call_arg = listener1.call_args[0][0]
         self.assertIn("ts", call_arg)
@@ -146,9 +147,9 @@ class TestEmit(unittest.TestCase):
         """Test that _emit catches exceptions from listeners."""
         def failing_listener(event):
             raise Exception("Test exception")
-        
+
         server._listeners = [failing_listener]
-        
+
         event = {"event": "test"}
         # Should not raise exception
         server._emit(event)
@@ -157,10 +158,10 @@ class TestEmit(unittest.TestCase):
         """Test that _emit adds timestamp to event."""
         listener = MagicMock()
         server._listeners = [listener]
-        
+
         event = {"event": "test"}
         server._emit(event)
-        
+
         call_arg = listener.call_args[0][0]
         self.assertIn("ts", call_arg)
         # Timestamp should be in ISO format (ends with Z or +00:00)
