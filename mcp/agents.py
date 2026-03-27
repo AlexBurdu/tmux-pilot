@@ -273,7 +273,7 @@ def resolve_uuid(uuid: str) -> str:
     """Resolve a UUID to a tmux pane target.
 
     Args:
-        uuid: The @pilot-uuid value (12-char hex).
+        uuid: The @pilot-uuid value (UUID v4).
 
     Returns:
         Pane target (e.g. "session:0.0").

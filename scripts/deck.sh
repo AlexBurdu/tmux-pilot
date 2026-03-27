@@ -47,8 +47,7 @@ tmux list-panes -a \
   -F '#{session_name}:#{window_index}.#{pane_index} #{@pilot-uuid}' |
 while read -r t oid; do
   if [[ -z "$oid" ]]; then
-    oid=$(uuidgen | tr '[:upper:]' '[:lower:]' \
-      | cut -c1-12)
+    oid=$(uuidgen | tr '[:upper:]' '[:lower:]')
     tmux set-option -p -t "$t" \
       @pilot-uuid "$oid" 2>/dev/null || true
   fi

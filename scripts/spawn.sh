@@ -165,8 +165,7 @@ if [[ "$mode" == "remote-tmux" ]]; then
         -p '#{@pilot-uuid}' 2>/dev/null) \
         || owner_uuid=""
       if [[ -z "$owner_uuid" ]]; then
-        owner_uuid=$(uuidgen | tr '[:upper:]' \
-          '[:lower:]' | cut -c1-12)
+        owner_uuid=$(uuidgen | tr '[:upper:]' '[:lower:]')
         tmux set-option -p -t "$owner" \
           @pilot-uuid "$owner_uuid" \
           2>/dev/null
@@ -224,8 +223,7 @@ elif [[ "$mode" == "local-ssh" ]]; then
         -p '#{@pilot-uuid}' 2>/dev/null) \
         || _ouuid=""
       if [[ -z "$_ouuid" ]]; then
-        _ouuid=$(uuidgen | tr '[:upper:]' \
-          '[:lower:]' | cut -c1-12)
+        _ouuid=$(uuidgen | tr '[:upper:]' '[:lower:]')
         tmux set-option -p -t "$owner" \
           @pilot-uuid "$_ouuid" 2>/dev/null
       fi
@@ -257,8 +255,7 @@ else
         -p '#{@pilot-uuid}' 2>/dev/null) \
         || _ouuid=""
       if [[ -z "$_ouuid" ]]; then
-        _ouuid=$(uuidgen | tr '[:upper:]' \
-          '[:lower:]' | cut -c1-12)
+        _ouuid=$(uuidgen | tr '[:upper:]' '[:lower:]')
         tmux set-option -p -t "$owner" \
           @pilot-uuid "$_ouuid" 2>/dev/null
       fi

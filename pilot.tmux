@@ -65,8 +65,7 @@ assign_oid='
   oid=$(tmux display-message -t "$target" \
     -p "#{@pilot-uuid}" 2>/dev/null)
   if [ -z "$oid" ]; then
-    oid=$(uuidgen | tr "[:upper:]" "[:lower:]" \
-      | cut -c1-12)
+    oid=$(uuidgen | tr "[:upper:]" "[:lower:]")
     tmux set-option -p -t "$target" \
       @pilot-uuid "$oid" 2>/dev/null
   fi
@@ -79,8 +78,7 @@ while read -r t; do
   oid=$(tmux display-message -t "$t" \
     -p '#{@pilot-uuid}' 2>/dev/null) || oid=""
   if [ -z "$oid" ]; then
-    oid=$(uuidgen | tr '[:upper:]' '[:lower:]' \
-      | cut -c1-12)
+    oid=$(uuidgen | tr '[:upper:]' '[:lower:]')
     tmux set-option -p -t "$t" \
       @pilot-uuid "$oid" 2>/dev/null || true
   fi
