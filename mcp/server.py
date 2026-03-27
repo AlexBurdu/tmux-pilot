@@ -167,12 +167,17 @@ def spawn_agent(
         agent_args: Optional extra CLI arguments passed to the agent binary
                     (e.g. "--subtree-only --no-show-model-warnings" for aider).
     """
-    # Explicit owner overrides auto-detection.
-    # Fall back to $TMUX_PANE (works when the MCP
-    # server runs inside tmux on the same machine).
-    effective_owner = (
-        owner or os.environ.get("TMUX_PANE", "")
-    )
+    # Use explicit owner if provided. Only fall
+    # back to $TMUX_PANE when it looks like a pane
+    # ID (%NNN) — not a bare number or empty string
+    # from a non-tmux environment. Without a valid
+    # owner, the agent is spawned unowned and the
+    # orchestrator must set it manually.
+    effective_owner = owner or ""
+    if not effective_owner:
+        pane = os.environ.get("TMUX_PANE", "")
+        if pane.startswith("%"):
+            effective_owner = pane
 
     cmd = [
         os.path.join(SCRIPTS_DIR, "spawn.sh"),
