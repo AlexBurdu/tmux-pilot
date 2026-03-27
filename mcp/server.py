@@ -5,11 +5,15 @@
 # ///
 """tmux-pilot MCP server — agent lifecycle tools for MCP-capable clients."""
 
+import importlib
 import json
 import os
 import re
 import subprocess
+import sys
 import uuid as _uuid_mod
+from datetime import datetime, timezone
+from typing import Callable
 
 from fastmcp import FastMCP
 
@@ -22,9 +26,55 @@ from monitor import (
     infer_status,
 )
 
+# Module-level listeners storage
+_listeners: list[Callable[[dict], None]] = []
+
 SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts")
 
 mcp = FastMCP("tmux-pilot")
+
+
+def _load_listeners() -> None:
+    """Load event listeners from config file."""
+    global _listeners
+    config_path = os.path.expanduser("~/.config/tmux-pilot/config.json")
+    
+    if not os.path.exists(config_path):
+        return
+    
+    try:
+        with open(config_path, "r") as f:
+            config = json.load(f)
+    except Exception as e:
+        print(f"Error loading config: {e}", file=sys.stderr)
+        return
+    
+    listeners_config = config.get("listeners", [])
+    if not isinstance(listeners_config, list):
+        print("Error: listeners must be an array", file=sys.stderr)
+        return
+    
+    for module_path in listeners_config:
+        if not isinstance(module_path, str):
+            print(f"Error: listener must be a string, got {type(module_path)}", file=sys.stderr)
+            continue
+        
+        try:
+            module = importlib.import_module(module_path)
+            if not hasattr(module, "create_listener"):
+                print(f"Error: module {module_path} has no create_listener function", file=sys.stderr)
+                continue
+            listener = module.create_listener()
+            if not callable(listener):
+                print(f"Error: create_listener in {module_path} did not return a callable", file=sys.stderr)
+                continue
+            _listeners.append(listener)
+        except Exception as e:
+            print(f"Error loading listener {module_path}: {e}", file=sys.stderr)
+
+
+# Load listeners at module load time
+_load_listeners()
 
 
 def _run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -51,6 +101,23 @@ def _validate_target(target: str) -> str | None:
     if not target or not _TARGET_RE.match(target):
         return f"Invalid target format: {target!r}"
     return None
+
+
+def _emit(event: dict) -> None:
+    """Emit an event to all registered listeners."""
+    if not _listeners:
+        return
+    
+    # Add timestamp
+    event_with_ts = event.copy()
+    event_with_ts["ts"] = datetime.now(timezone.utc).isoformat()
+    
+    # Call each listener
+    for listener in _listeners:
+        try:
+            listener(event_with_ts)
+        except Exception as e:
+            print(f"Error in listener {listener.__name__ if hasattr(listener, '__name__') else 'unknown'}: {e}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +214,23 @@ def spawn_agent(
         return f"Error: {result.stderr.strip()}"
     name = result.stdout.strip()
     effective_mode = mode or ("local-ssh" if host else None)
+    
+    # Emit spawn event
+    _emit({
+        "event": "spawn",
+        "session": name,
+        "agent": agent,
+        "prompt": prompt,
+        "directory": directory,
+        "target": name,
+        "owner": owner,
+        "tier": tier,
+        "trust": trust,
+        "issue": issue,
+        "worktree": worktree,
+        "repo": repo
+    })
+    
     if effective_mode == "remote-tmux":
         return (
             f"Remote session created: {name}\n"
@@ -262,6 +346,10 @@ def pause_agent(target: str | None = None, uuid: str | None = None) -> str:
     result = _run(cmd)
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
+    
+    # Emit pause event
+    _emit({"event": "pause", "target": target})
+    
     return f"Paused {target}"
 
 
@@ -292,6 +380,10 @@ def resume_agent(target: str | None = None, uuid: str | None = None) -> str:
     result = _run(cmd)
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
+    
+    # Emit resume event
+    _emit({"event": "resume", "target": target})
+    
     return f"Resumed {target}"
 
 
@@ -334,7 +426,10 @@ def kill_agent(target: str | None = None, uuid: str | None = None) -> str:
     result = _run([os.path.join(SCRIPTS_DIR, "kill.sh"), target, path])
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
-
+    
+    # Emit kill event
+    _emit({"event": "kill", "target": target})
+    
     output = result.stdout.strip()
     return output if output else f"Killed {target}"
 
@@ -411,6 +506,10 @@ def send_keys(keys: str, target: str | None = None, uuid: str | None = None) -> 
 
     if result.returncode != 0:
         return f"Error: {result.stderr.strip()}"
+    
+    # Emit send_keys event
+    _emit({"event": "send_keys", "target": target, "keys": keys})
+    
     return f"Sent keys to {target}"
 
 
@@ -527,6 +626,10 @@ def transfer_ownership(old_owner: str, new_owner: str) -> str:
 
     if not updated:
         return f"No panes found with @pilot-owner={old_owner!r}"
+    
+    # Emit transfer_ownership event
+    _emit({"event": "transfer_ownership", "old_owner": old_owner, "new_owner": new_owner})
+    
     return f"Updated {len(updated)} pane(s): {', '.join(updated)}"
 
 
@@ -568,6 +671,10 @@ def run_command_silent(
             with open(log_file) as f:
                 lines = f.readlines()
                 tail = "".join(lines[-30:])
+        
+        # Emit run_command event
+        _emit({"event": "run_command", "command": command, "directory": directory})
+        
         return json.dumps({"exit_code": exit_code, "log_file": log_file, "tail": tail})
     except subprocess.TimeoutExpired:
         tail = f"TIMEOUT after {timeout_minutes}m"
