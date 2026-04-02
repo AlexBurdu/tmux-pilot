@@ -30,6 +30,9 @@ while [[ $# -gt 0 ]]; do
     --host)       host="$2"; shift 2 ;;
     --mode)       mode="$2"; shift 2 ;;
     --owner)      owner="$2"; shift 2 ;;
+                if [[ -n "$owner" && "$owner" =~ ^% ]]; then
+                  echo "WARNING: owner looks like a pane ID, should be a UUID" >&2
+                fi ;;
     --tier)       tier="$2"; shift 2 ;;
     --trust)          trust="$2"; shift 2 ;;
     --review-target)  review_target="$2"; shift 2 ;;

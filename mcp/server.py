@@ -152,9 +152,10 @@ def spawn_agent(
         mode: Execution mode when host is set: "local-ssh" (local pane over SSH,
               visible in deck) or "remote-tmux" (fully remote tmux session).
               Defaults to "local-ssh".
-        owner: Optional owner pane ID (e.g. "%5"). Overrides $TMUX_PANE
-               auto-detection. Use when the MCP server runs outside tmux
-               (e.g. remote MCP) and the caller knows its own pane ID.
+        owner: Optional owner UUID (e.g. ae07d8e0). Pane IDs (%) are machine-local
+               and don't work for remote spawns. Overrides $TMUX_PANE auto-detection.
+               Use when the MCP server runs outside tmux (e.g. remote MCP) and the
+               caller knows its own UUID.
         tier: Optional tier label (string). Sets @pilot-tier pane variable.
         trust: Optional trust level (string). Sets @pilot-trust pane variable.
         review_target: Optional pane target for routing review notifications.
@@ -167,6 +168,10 @@ def spawn_agent(
         agent_args: Optional extra CLI arguments passed to the agent binary
                     (e.g. "--subtree-only --no-show-model-warnings" for aider).
     """
+    # Validate owner parameter: must be a UUID, not a pane ID
+    if owner and owner.startswith("%"):
+        return "Error: owner must be a UUID, not a pane ID. Pass your @pilot-uuid instead."
+
     # Use explicit owner if provided. Only fall
     # back to $TMUX_PANE when it looks like a pane
     # ID (%NNN) — not a bare number or empty string
