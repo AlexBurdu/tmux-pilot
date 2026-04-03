@@ -225,6 +225,14 @@ def spawn_agent(
     name = result.stdout.strip()
     effective_mode = mode or ("local-ssh" if host else None)
 
+    # Start pipe-pane for Vibe to capture full output when in alternate screen.
+    # Textual TUI (Vibe) hides conversation from capture-pane -p.
+    if agent == "vibe" and effective_mode != "remote-tmux":
+        target = f"{name}:0.0"
+        log_file = f"/tmp/tmux-pipe-{name}.log"
+        _run(["tmux", "pipe-pane", "-t", target, "-o", f"cat >> {log_file}"])
+        _run(["tmux", "set-option", "-p", "-t", target, "@pilot-pipe-log", log_file])
+
     # Emit spawn event
     _emit({
         "event": "spawn",
@@ -416,6 +424,14 @@ def kill_agent(target: str | None = None, uuid: str | None = None) -> str:
 
     if err := _validate_target(target):
         return f"Error: {err}"
+
+    # Get pipe-log path for cleanup
+    pipe_log_result = _run([
+        "tmux", "display-message", "-t", target, "-p",
+        "#{@pilot-pipe-log}",
+    ])
+    pipe_log = pipe_log_result.stdout.strip() if pipe_log_result.returncode == 0 else ""
+
     # Get working directory for worktree cleanup
     path_result = _run([
         "tmux", "display-message", "-t", target, "-p",
@@ -439,6 +455,13 @@ def kill_agent(target: str | None = None, uuid: str | None = None) -> str:
 
     # Emit kill event
     _emit({"event": "kill", "target": target})
+
+    # Cleanup pipe log
+    if pipe_log and os.path.exists(pipe_log):
+        try:
+            os.remove(pipe_log)
+        except Exception as e:
+            print(f"Error removing pipe log {pipe_log}: {e}", file=sys.stderr)
 
     output = result.stdout.strip()
     return output if output else f"Killed {target}"
@@ -467,6 +490,24 @@ def capture_pane(target: str | None = None, lines: int = 20, uuid: str | None = 
         return f"Error: {err}"
     if lines < 1:
         return "Error: lines must be >= 1"
+
+    # If alternate screen is active, capture-pane returns very little.
+    # We fallback to the pipe-pane log if it exists.
+    fmt = "#{alternate_on}\x1f#{@pilot-pipe-log}"
+    info = _run(["tmux", "display-message", "-t", target, "-p", fmt])
+    if info.returncode == 0:
+        parts = info.stdout.strip().split("\x1f")
+        alternate_on = parts[0] == "1"
+        pipe_log = parts[1] if len(parts) > 1 else ""
+
+        if alternate_on and pipe_log and os.path.exists(pipe_log):
+            # Read last N lines from the pipe log.
+            # tail -n is reliable for this fallback.
+            tail_cmd = ["tail", "-n", str(lines), pipe_log]
+            tail_result = _run(tail_cmd)
+            if tail_result.returncode == 0:
+                return tail_result.stdout
+
     cmd = ["tmux", "capture-pane", "-t", target, "-p", "-S", f"-{lines}"]
     if ansi:
         cmd.insert(3, "-e")
@@ -574,14 +615,31 @@ def monitor_agents() -> str:
             continue
 
         # Capture pane output
-        cap = _run([
-            "tmux", "capture-pane",
-            "-t", target, "-p",
-            "-S", f"-{_MONITOR_CAPTURE_LINES}",
-        ])
-        if cap.returncode != 0:
-            continue
-        text = cap.stdout
+        # If alternate screen is active, capture-pane returns very little.
+        # We fallback to the pipe-pane log if it exists.
+        text = ""
+        fmt = "#{alternate_on}\x1f#{@pilot-pipe-log}"
+        info = _run(["tmux", "display-message", "-t", target, "-p", fmt])
+        if info.returncode == 0:
+            parts = info.stdout.strip().split("\x1f")
+            alternate_on = parts[0] == "1"
+            pipe_log = parts[1] if len(parts) > 1 else ""
+
+            if alternate_on and pipe_log and os.path.exists(pipe_log):
+                tail_cmd = ["tail", "-n", str(_MONITOR_CAPTURE_LINES), pipe_log]
+                tail_result = _run(tail_cmd)
+                if tail_result.returncode == 0:
+                    text = tail_result.stdout
+
+        if not text:
+            cap = _run([
+                "tmux", "capture-pane",
+                "-t", target, "-p",
+                "-S", f"-{_MONITOR_CAPTURE_LINES}",
+            ])
+            if cap.returncode != 0:
+                continue
+            text = cap.stdout
 
         prompts = detect_prompts(text)
         events = detect_events(text)

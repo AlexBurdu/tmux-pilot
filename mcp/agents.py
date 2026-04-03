@@ -187,7 +187,7 @@ def parse_pane_lines(
             pissue, pworktree, prepo,
             puuid,
             session, pane_id,
-        ) = parts[:22]
+        ) = parts[:21]
 
         directory = workdir if workdir else path
 
