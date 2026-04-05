@@ -260,6 +260,27 @@ if [[ -n "$TMUX" ]]; then
     desc=$(tr '\n' ' ' <<< "${prompt:0:80}")
     tmux set-option -p -t "$session_name" @pilot-desc "$desc"
     tmux set-option -p -t "$session_name" @pilot-agent "$agent"
+
+    # Agents that launch interactively (no --message flag)
+    # need the prompt delivered via paste-buffer after the
+    # agent's input prompt appears.
+    if [[ "$agent" == "aider" ]]; then
+      escaped_prompt=$(printf '%s' "$prompt" | sed "s/'/'\\\\''/g")
+      tmux run-shell -b "
+        for i in \$(seq 1 60); do
+          sleep 0.5
+          out=\$(tmux capture-pane -p -t '$session_name' 2>/dev/null)
+          if printf '%s' \"\$out\" | grep -qE '^\s*>'; then
+            printf '%s' '$escaped_prompt' | tmux load-buffer -
+            tmux paste-buffer -d -p -t '$session_name'
+            sleep 0.1
+            tmux send-keys -t '$session_name' Enter
+            break
+          fi
+        done
+      "
+    fi
+
     tmux switch-client -t "$session_name"
   fi
 else
