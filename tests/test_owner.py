@@ -120,7 +120,7 @@ class TestSpawnAgentOwner(unittest.TestCase):
             agent="gemini",
             prompt="Fix bug #99",
             directory="/tmp",
-            owner="%299",
+            owner="ae07d8e0-1234-4567-890a-bcdef0123456",
         )
 
         self.assertIn("gemini-fix-99", result)
@@ -128,7 +128,7 @@ class TestSpawnAgentOwner(unittest.TestCase):
         self.assertIn("--owner", spawn_cmd)
         idx = spawn_cmd.index("--owner")
         self.assertEqual(
-            spawn_cmd[idx + 1], "%299"
+            spawn_cmd[idx + 1], "ae07d8e0-1234-4567-890a-bcdef0123456"
         )
 
     @patch.dict(os.environ, {"TMUX_PANE": "%5"})
@@ -149,7 +149,7 @@ class TestSpawnAgentOwner(unittest.TestCase):
             agent="gemini",
             prompt="Fix bug #99",
             directory="/tmp",
-            owner="%299",
+            owner="ae07d8e0-1234-4567-890a-bcdef0123456",
         )
 
         self.assertIn("gemini-fix-99", result)
@@ -157,7 +157,7 @@ class TestSpawnAgentOwner(unittest.TestCase):
         idx = spawn_cmd.index("--owner")
         # Explicit owner wins over $TMUX_PANE
         self.assertEqual(
-            spawn_cmd[idx + 1], "%299"
+            spawn_cmd[idx + 1], "ae07d8e0-1234-4567-890a-bcdef0123456"
         )
 
 

@@ -42,7 +42,12 @@ def _make_line(
     trust="",
     review_target="",
     review_context="",
+    issue="",
+    worktree="",
+    repo="",
+    uuid="",
     session="s",
+    pane_id="",
 ):
     """Build a single tmux list-panes output line."""
     return SEP.join([
@@ -50,7 +55,8 @@ def _make_line(
         activity, pid, host, mode, status,
         owner, tier, trust,
         review_target, review_context,
-        session,
+        issue, worktree, repo,
+        uuid, session, pane_id,
     ])
 
 
