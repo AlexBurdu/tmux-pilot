@@ -11,6 +11,8 @@ import os
 import re
 import subprocess
 import sys
+import threading
+import time
 import uuid as _uuid_mod
 from datetime import datetime, timezone
 from typing import Callable
@@ -120,6 +122,54 @@ def _emit(event: dict) -> None:
             print(f"Error in listener {listener.__name__ if hasattr(listener, '__name__') else 'unknown'}: {e}", file=sys.stderr)
 
 
+_INPUT_PROMPT_RE = re.compile(
+    r"^\s*[>❯\$#]\s*$"
+)
+
+
+def _deliver_prompt_async(
+    target: str, prompt: str
+) -> None:
+    """Deliver a prompt to an agent via paste-buffer
+    after its input prompt appears. Runs in a daemon
+    thread to avoid blocking the MCP response.
+
+    Polls capture-pane for a recognisable input prompt
+    marker then pastes the text and sends Enter.
+    """
+    def _deliver():
+        for _ in range(60):
+            time.sleep(0.5)
+            cap = _run([
+                "tmux", "capture-pane",
+                "-p", "-t", target,
+                "-S", "-100",
+            ])
+            if cap.returncode != 0:
+                return
+            for line in cap.stdout.splitlines():
+                if _INPUT_PROMPT_RE.match(line):
+                    _run(
+                        ["tmux", "load-buffer", "-"],
+                        input=prompt.encode(),
+                    )
+                    _run([
+                        "tmux", "paste-buffer",
+                        "-d", "-p", "-t", target,
+                    ])
+                    time.sleep(0.1)
+                    _run([
+                        "tmux", "send-keys",
+                        "-t", target, "Enter",
+                    ])
+                    return
+
+    thread = threading.Thread(
+        target=_deliver, daemon=True
+    )
+    thread.start()
+
+
 # ---------------------------------------------------------------------------
 # spawn_agent
 # ---------------------------------------------------------------------------
@@ -225,9 +275,10 @@ def spawn_agent(
     name = result.stdout.strip()
     effective_mode = mode or ("local-ssh" if host else None)
 
-    # Start pipe-pane for Vibe to capture full output when in alternate screen.
-    # Textual TUI (Vibe) hides conversation from capture-pane -p.
-    if agent == "vibe" and effective_mode != "remote-tmux":
+    # Start pipe-pane for agents that use alternate screen
+    # (prompt_toolkit TUI). capture-pane -p returns empty
+    # for these agents without pipe-pane logging.
+    if agent in ("vibe", "aider") and effective_mode != "remote-tmux":
         target = f"{name}:0.0"
         log_file = f"/tmp/tmux-pipe-{name}.log"
         _run(["tmux", "pipe-pane", "-t", target, "-o", f"cat >> {log_file}"])
@@ -248,6 +299,12 @@ def spawn_agent(
         "worktree": worktree,
         "repo": repo
     })
+
+    # Agents that launch interactively need the prompt
+    # delivered via paste-buffer after startup.
+    if agent == "aider" and effective_mode != "remote-tmux":
+        target = f"{name}:0.0"
+        _deliver_prompt_async(target, prompt)
 
     if effective_mode == "remote-tmux":
         return (
