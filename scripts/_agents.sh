@@ -4,7 +4,7 @@
 CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Single source of truth for supported agent names.
-KNOWN_AGENTS="claude gemini aider codex goose interpreter vibe"
+KNOWN_AGENTS="claude gemini agy aider codex goose interpreter vibe"
 
 # Check if an agent binary is available.
 # Searches PATH, npm global bin, nvm, and common
@@ -62,6 +62,7 @@ agent_build_cmd() {
   # shellcheck disable=SC2086
   case "$agent" in
     gemini)      cmd_args=(bash -lc 'exec gemini -y "$0"' "$prompt") ;;
+    agy)         cmd_args=(bash -lc 'exec agy --dangerously-skip-permissions -i "$0"' "$prompt") ;;
     vibe)        cmd_args=(vibe --agent auto-approve "$prompt") ;;
     aider)       cmd_args=(bash -lc "exec aider --yes-always $extra_args") ;;
     goose)       cmd_args=(goose run "$prompt") ;;

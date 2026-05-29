@@ -194,7 +194,7 @@ def spawn_agent(
     """Create a new AI agent in its own tmux session.
 
     Args:
-        agent: Agent name (claude, gemini, aider, codex, goose, interpreter, vibe).
+        agent: Agent name (claude, gemini, agy, aider, codex, goose, interpreter, vibe).
         prompt: The task prompt to send to the agent.
         directory: Working directory for the agent session.
         session_name: Optional session name (auto-generated from prompt if omitted).
@@ -278,7 +278,7 @@ def spawn_agent(
     # Start pipe-pane for agents that use alternate screen
     # (prompt_toolkit TUI). capture-pane -p returns empty
     # for these agents without pipe-pane logging.
-    if agent in ("vibe", "aider") and effective_mode != "remote-tmux":
+    if agent in ("vibe", "aider", "agy") and effective_mode != "remote-tmux":
         target = f"{name}:0.0"
         log_file = f"/tmp/tmux-pipe-{name}.log"
         _run(["tmux", "pipe-pane", "-t", target, "-o", f"cat >> {log_file}"])

@@ -2,7 +2,7 @@
 
 AI agent manager for tmux. Launch, monitor, and orchestrate multiple coding agents from your terminal.
 
-Supports **Claude Code**, **Gemini CLI**, **Aider**, **Codex**, **Goose**, and **Open Interpreter** — auto-detects which agents are installed.
+Supports **Claude Code**, **Gemini CLI**, **Antigravity CLI** (`agy`), **Aider**, **Codex**, **Goose**, **Vibe**, and **Open Interpreter** — auto-detects which agents are installed.
 
 WARNING: THIS PLUGIN IS VIBE-CODED. USE IT AT YOUR OWN RISK. 
 
@@ -195,7 +195,7 @@ tmux-pilot will display in the deck.
 | Variable | Set by | Read by | Values |
 |----------|--------|---------|--------|
 | `@pilot-uuid` | pilot.tmux (auto) | deck, spawn | Unique pane identifier (12-char hex) |
-| `@pilot-agent` | spawn.sh, auto-detect | deck, monitor | claude, gemini, vibe, ... |
+| `@pilot-agent` | spawn.sh, auto-detect | deck, monitor | claude, gemini, agy, vibe, ... |
 | `@pilot-desc` | spawn.sh, agent | deck | Task description |
 | `@pilot-workdir` | agent hook | deck, kill.sh | Current dir |
 | `@pilot-status` | external tool, deck | deck | Status enum (see below) |

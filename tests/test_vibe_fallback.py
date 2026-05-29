@@ -91,6 +91,27 @@ class TestVibeFallback(unittest.TestCase):
         self.assertTrue(len(pipe_calls) > 0)
 
     @patch("server._run")
+    def test_spawn_starts_pipe_pane_for_agy(
+        self, mock_run
+    ):
+        """spawn_agent starts pipe-pane for agy."""
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="agy-session"
+        )
+
+        server.spawn_agent(
+            agent="agy",
+            prompt="test",
+            directory="/tmp",
+        )
+
+        pipe_calls = [
+            c for c in mock_run.call_args_list
+            if "pipe-pane" in c[0][0]
+        ]
+        self.assertTrue(len(pipe_calls) > 0)
+
+    @patch("server._run")
     @patch("server.os.path.exists")
     @patch("server.os.remove")
     def test_kill_cleans_up_log(
