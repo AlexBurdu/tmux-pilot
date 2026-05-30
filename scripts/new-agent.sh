@@ -12,7 +12,7 @@ agents=$(list_available_agents)
 
 if [[ -z "$agents" ]]; then
   printf '\n  No AI agents found.\n'
-  printf '  Install claude, gemini, aider, or codex.\n\n'
+  printf '  Install claude, gemini, agy, aider, or codex.\n\n'
   printf '  Press Enter to close.'
   read -r
   exit 1

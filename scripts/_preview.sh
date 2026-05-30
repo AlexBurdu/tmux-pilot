@@ -340,7 +340,7 @@ case "$pane_cmd" in
           && "$_start" == *"$pilot_agent"* ]]; then
         display_cmd="$pilot_agent"
       else
-        for _a in claude gemini aider codex \
+        for _a in claude gemini agy aider codex \
             goose interpreter vibe; do
           if [[ "$_start" == *"$_a"* ]]; then
             display_cmd="$_a"
