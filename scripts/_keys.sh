@@ -36,8 +36,13 @@ send_text() {
       ;;
   esac
 
-  # Default: send Enter unless suppressed.
+  # Default: sleep before Enter so paste-buffer settles. Without it
+  # Claude Code reads Enter before the paste completes and buffers
+  # it as a newline inside the composer — message stuck, not sent.
+  # Mirrors the agent-aware delays above (alexlibraria #3375 was
+  # the matching fix on the remote path).
   if [[ -z "$no_enter" ]]; then
+    sleep 0.1
     tmux send-keys -t "$target" Enter
   fi
 }
