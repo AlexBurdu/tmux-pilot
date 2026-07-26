@@ -85,6 +85,31 @@ The preview panel (right side, 60%) shows metadata:
 
 All fields are shown only when set — empty fields are hidden.
 
+#### Remote hosts
+
+Remote panes are read over SSH from the hosts listed in
+`~/.config/tmux-pilot/hosts`. To keep `prefix+e` instant, the deck
+paints from local panes first and fetches remote panes
+asynchronously: fzf shows the local list immediately, then swaps in
+the full list (local + remote) as soon as the remote fetch returns.
+
+Each remote fetch is bounded and runs in parallel, so a slow or
+unreachable host can never freeze the deck. The overall per-host
+timeout defaults to 3 seconds and can be tuned with the
+`PILOT_SSH_TIMEOUT` environment variable. Hosts fetched in a
+session are cached for the deck's lifetime so they don't flicker
+out when the list is rebuilt after an action.
+
+Manual check: add an unreachable host and confirm `prefix+e` still
+opens instantly.
+
+```bash
+echo "192.0.2.1" >> ~/.config/tmux-pilot/hosts   # TEST-NET-1, black hole
+# Open the deck with prefix+e — it appears immediately; the
+# unreachable host simply contributes no panes.
+sed -i '/^192\.0\.2\.1$/d' ~/.config/tmux-pilot/hosts   # clean up
+```
+
 ### VCS status (`prefix+d`)
 
 Opens neovim in a popup with:
@@ -318,6 +343,7 @@ Add to `~/.gemini/settings.json`:
 | `scripts/commit.sh` | WIP commit + push for a worktree |
 | `scripts/kill.sh` | Kill pane + cleanup worktree |
 | `scripts/spawn.sh` | Headless agent spawner (non-interactive, used by MCP server) |
+| `scripts/_hosts.sh` | Host discovery + bounded, parallel remote pane fetch |
 | `mcp/server.py` | MCP server exposing agent lifecycle tools |
 
 ## MCP Server

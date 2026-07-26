@@ -99,64 +99,66 @@ collect_panes() {
   done
 }
 
-# Collect panes from a remote tmux via SSH.
-# Uses ||| as delimiter (unit separator doesn't
-# survive SSH quoting). Converts to tabs for
-# parsing. Outputs same format as collect_panes
-# with empty CPU/MEM.
-collect_remote_panes() {
-  local host="$1"
-  local D="<~>"
-  local output
-  output=$(ssh \
-    -o ConnectTimeout=2 \
-    -o BatchMode=yes \
-    "$host" \
-    "tmux list-panes -a -F '#{session_name}${D}#{window_index}${D}#{window_name}${D}#{pane_index}${D}#{pane_current_path}${D}#{@pilot-agent}${D}#{@pilot-status}${D}#{@pilot-desc}${D}#{@pilot-type}${D}#{@pilot-owner}${D}#{@pilot-uuid}'" \
-    2>/dev/null) || return 0
-  # Reformat with awk (preserves empty fields).
-  # awk preserves empty fields (unlike bash read).
-  echo "$output" | awk -F'<~>' -v h="$host" \
-    'NF>0 {
-      ses=$1; wi=$2; wn=$3; pi=$4; pa=$5
-      ag=$6; st=$7; de=$8; pt=$9; ou=$10; su=$11
-      tgt=ses":"wi"."pi
-      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t\t\t%s\t%s\t%s\t%s\t%s\t\n", \
-        tgt, ses, wi, wn, pi, pa, \
-        ag, st, ou, de, pt, h, su
-    }'
-}
+# Remote pane collection (collect_remote_panes,
+# collect_remote_all) lives in _hosts.sh so it is bounded,
+# parallel, and unit-testable.
 
 PILOT_DATA=$(mktemp)
-trap 'rm -f "$PILOT_DATA"' EXIT
+# Session cache of the last remote fetch. Lets a local-only
+# render (used for the instant initial paint and after
+# actions) include remote panes from the previous fetch, so
+# they don't flicker out on every relaunch.
+PILOT_RCACHE=$(mktemp)
+trap 'rm -f "$PILOT_DATA" "$PILOT_RCACHE"' EXIT
 
-# Build indexed data + display via Python
-# formatter. Handles sorting, grouping, dimming,
-# column alignment, and emoji width.
-build_data() {
-  local data_file="${1:-$PILOT_DATA}"
+# Build indexed data + display via the Python formatter, which
+# sorts, groups, dims, and aligns columns. It needs the whole
+# pane set before emitting anything, so progressive streaming
+# is not possible — instead we choose a remote strategy per
+# call ($1):
+#   local  local panes + cached remote (instant, no SSH)
+#   full   local panes + a fresh bounded parallel remote fetch
+# The data file is written to a temp then moved into place so a
+# concurrent preview never reads a half-written file.
+render_data() {
+  local mode="$1"
+  local data_file="${2:-$PILOT_DATA}"
+  local rcache="${3:-$PILOT_RCACHE}"
+  local tmp_data
+  tmp_data=$(mktemp)
   {
     collect_panes
-    # Remote panes (sequential)
-    local hosts
-    hosts=$(cached_hosts 2>/dev/null) || hosts=""
-    for h in $hosts; do
-      collect_remote_panes "$h" || true
-    done
+    if [[ "$mode" == full ]]; then
+      # Fresh fetch: buffer to a temp, emit it, then swap
+      # it into the cache atomically (mv) so a concurrent
+      # local render never reads a half-written cache.
+      local rtmp
+      rtmp=$(mktemp)
+      collect_remote_all >"$rtmp"
+      cat "$rtmp"
+      mv -f "$rtmp" "$rcache"
+    else
+      cat "$rcache" 2>/dev/null || true
+    fi
   } | python3 \
     "$CURRENT_DIR/deck_format.py" \
-    --data-file "$data_file" \
+    --data-file "$tmp_data" \
     --col-pane 26 --col-type 14
+  mv -f "$tmp_data" "$data_file"
 }
 
-# --list mode for reload: rebuild data + display
+# --list mode: full (local + remote) rebuild, used as fzf's
+# async reload so the initial popup paints from local data
+# immediately while remote panes stream in a moment later.
+# Optional 3rd arg is the parent deck's remote cache path so
+# this refresh populates it for the parent's later renders.
 if [[ "${1:-}" == "--list" ]]; then
   data_file="${2:-}"
   if [[ -z "$data_file" ]]; then
     echo "error: --list requires data file path" >&2
     exit 1
   fi
-  build_data "$data_file"
+  render_data full "$data_file" "${3:-}"
   exit 0
 fi
 
@@ -196,8 +198,24 @@ find_current_pos() {
   done < "$PILOT_DATA"
 }
 
-# Build initial data
-display=$(build_data)
+# Build initial data from local panes only — this paints the
+# popup immediately. Remote panes (if any hosts are configured)
+# stream in via the async reload wired below, so a slow or
+# unreachable SSH host never delays the initial render.
+display=$(render_data local)
+
+# Only wire the async remote refresh when hosts are configured;
+# otherwise the local render above is already complete and no
+# SSH is ever attempted (behaviour identical to a host-less
+# setup). The reload runs deck.sh --list in the background; fzf
+# keeps showing the local list until the fresh full list (local
+# + bounded parallel remote) is ready, then swaps it in.
+remote_reload_bind=()
+if [[ -n "$(cached_hosts 2>/dev/null)" ]]; then
+  reload_cmd="$CURRENT_DIR/deck.sh --list"
+  reload_cmd+=" $PILOT_DATA $PILOT_RCACHE"
+  remote_reload_bind=(--bind "start:reload($reload_cmd)")
+fi
 
 # Main dispatch loop — fzf exits, we read the key +
 # selection, perform the action, then re-launch fzf
@@ -228,6 +246,7 @@ $COL_SEP" \
       --bind "ctrl-r:refresh-preview" \
       --expect "enter,alt-d,alt-s,alt-x,alt-p,alt-r,alt-n,alt-e,alt-y,alt-l,alt-t,alt-u" \
       "${fzf_start_bind[@]}" \
+      "${remote_reload_bind[@]}" \
     <<< "$display") || break  # esc / ctrl-c → exit
 
   # Parse: first line = key pressed, second line = selected
@@ -267,8 +286,8 @@ $COL_SEP" \
       target=$(lookup "$idx" target) || continue
       path=$(lookup "$idx" path) || continue
       "$CURRENT_DIR/kill.sh" "$target" "$path"
-      # Rebuild data after kill
-      display=$(build_data)
+      # Rebuild data after kill; remote refreshes via reload.
+      display=$(render_data local)
       ;;
     alt-p)
       target=$(lookup "$idx" target) || continue
@@ -282,8 +301,8 @@ $COL_SEP" \
       ;;
     alt-n)
       "$CURRENT_DIR/new-agent.sh"
-      # Rebuild data after new agent
-      display=$(build_data)
+      # Rebuild data after new agent; remote via reload.
+      display=$(render_data local)
       ;;
     alt-e)
       target=$(lookup "$idx" target) || continue
@@ -318,7 +337,7 @@ $COL_SEP" \
         d) tmux set-option -p -t "$target" \
              @pilot-type daemon ;;
       esac
-      display=$(build_data)
+      display=$(render_data local)
       ;;
     alt-u)
       target=$(lookup "$idx" target) || continue
